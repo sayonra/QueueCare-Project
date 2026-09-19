@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AppointmentController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\BranchOperatingHourController;
@@ -7,11 +8,13 @@ use App\Http\Controllers\Api\V1\CounterController;
 use App\Http\Controllers\Api\V1\CounterWorkflowController;
 use App\Http\Controllers\Api\V1\CustomerBranchController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\PublicDisplayController;
 use App\Http\Controllers\Api\V1\ServiceController;
 use App\Http\Controllers\Api\V1\StaffAssignmentController;
 use App\Http\Controllers\Api\V1\StaffCounterController;
 use App\Http\Controllers\Api\V1\TicketController;
+use App\Http\Controllers\Api\V1\TicketServiceFlowController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -45,6 +48,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/tickets', [TicketController::class, 'store']);
         Route::get('/tickets/{ticket}', [TicketController::class, 'show']);
         Route::post('/tickets/{ticket}/cancel', [TicketController::class, 'cancel']);
+        Route::get('/appointments', [AppointmentController::class, 'index']);
+        Route::post('/appointments', [AppointmentController::class, 'store']);
+        Route::post('/tickets/{ticket}/check-in', [TicketServiceFlowController::class, 'checkIn']);
+        Route::post('/tickets/{ticket}/transfer', [TicketServiceFlowController::class, 'transfer']);
+        Route::post('/tickets/{ticket}/priority', [TicketServiceFlowController::class, 'priority']);
+        Route::post('/device-tokens', [DeviceTokenController::class, 'store']);
         Route::apiResource('branches', BranchController::class);
         Route::apiResource('branches.services', ServiceController::class);
         Route::apiResource('branches.counters', CounterController::class);

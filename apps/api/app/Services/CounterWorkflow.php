@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class CounterWorkflow
 {
+    public function __construct(private readonly NotificationOutbox $notifications) {}
+
     public function callNext(User $actor, Counter $requestedCounter): Ticket
     {
         $this->authorize($actor, $requestedCounter);
@@ -29,6 +31,7 @@ class CounterWorkflow
                 ->where('branch_id', $counter->branch_id)
                 ->whereIn('service_id', $serviceIds)
                 ->where('status', TicketStatus::Waiting->value)
+                ->where(fn ($query) => $query->whereNull('preferred_counter_id')->orWhere('preferred_counter_id', $counter->id))
                 ->orderByRaw("CASE priority WHEN 'emergency' THEN 1 WHEN 'accessibility' THEN 2 WHEN 'scheduled' THEN 3 WHEN 'standard' THEN 4 WHEN 'restored' THEN 5 ELSE 6 END")
                 ->orderBy('waiting_since')
                 ->orderBy('sequence')
@@ -39,13 +42,16 @@ class CounterWorkflow
                 throw ValidationException::withMessages(['queue' => ['No customer is waiting for this counter.']]);
             }
 
-            return $this->recordTransition(
+            $ticket = $this->recordTransition(
                 ticket: $ticket,
                 actor: $actor,
                 toStatus: TicketStatus::Called,
                 reason: "Called to {$counter->label}.",
-                attributes: ['counter_id' => $counter->id, 'called_at' => now()],
+                attributes: ['counter_id' => $counter->id, 'preferred_counter_id' => null, 'called_at' => now()],
             );
+            $this->notifications->enqueue($ticket->customer, 'ticket_called', 'It is your turn', "Proceed to {$counter->label} for {$ticket->public_number}.", ['ticket_id' => $ticket->id, 'counter_id' => $counter->id], $ticket);
+
+            return $ticket;
         }, 3);
     }
 
@@ -64,7 +70,7 @@ class CounterWorkflow
             return match ($action) {
                 'recall' => $this->recall($actor, $counter, $ticket),
                 'serve' => $this->move($actor, $counter, $ticket, TicketStatus::Called, TicketStatus::Serving, 'Customer arrived; service started.', ['serving_at' => now()]),
-                'skip' => $this->move($actor, $counter, $ticket, TicketStatus::Called, TicketStatus::Skipped, 'Customer was absent when called.', ['skipped_at' => now()]),
+                'skip' => $this->skip($actor, $counter, $ticket),
                 'restore' => $this->restore($actor, $ticket),
                 'complete' => $this->move($actor, $counter, $ticket, TicketStatus::Serving, TicketStatus::Completed, 'Service completed.', ['completed_at' => now()]),
                 default => throw ValidationException::withMessages(['action' => ['This ticket action is not supported.']]),
@@ -93,6 +99,16 @@ class CounterWorkflow
         $this->requireStatus($ticket, TicketStatus::Called);
 
         return $this->recordTransition($ticket, $actor, TicketStatus::Called, "Recalled to {$counter->label}.", ['called_at' => now()]);
+    }
+
+    private function skip(User $actor, Counter $counter, Ticket $ticket): Ticket
+    {
+        $this->requireStatus($ticket, TicketStatus::Called);
+        if (! $ticket->called_at || $ticket->called_at->isAfter(now()->subMinutes(2))) {
+            throw ValidationException::withMessages(['ticket' => ['Wait two minutes after calling before marking the customer absent.']]);
+        }
+
+        return $this->move($actor, $counter, $ticket, TicketStatus::Called, TicketStatus::Skipped, 'Customer was absent after the two-minute grace period.', ['skipped_at' => now()]);
     }
 
     /** @param array<string, mixed> $attributes */
@@ -126,8 +142,13 @@ class CounterWorkflow
         $ticket->update([...$attributes, 'status' => $toStatus]);
         $ticket->statusHistory()->create([
             'actor_id' => $actor->id,
+            'event_type' => 'status',
             'from_status' => $fromStatus,
             'to_status' => $toStatus,
+            'from_priority' => $ticket->getOriginal('priority'),
+            'to_priority' => $ticket->priority,
+            'from_counter_id' => $ticket->getOriginal('counter_id'),
+            'to_counter_id' => $ticket->counter_id,
             'reason' => $reason,
             'occurred_at' => now(),
         ]);

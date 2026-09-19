@@ -36,6 +36,15 @@ class DashboardController extends Controller
                     'counter' => $ticket->counter?->label,
                     'updated_at' => $ticket->updated_at?->toIso8601String(),
                 ]),
+            'waiting_tickets' => Ticket::query()->where('branch_id', $branch->id)
+                ->where('status', TicketStatus::Waiting->value)->with('service')
+                ->orderBy('waiting_since')->limit(20)->get()
+                ->map(fn (Ticket $ticket): array => [
+                    'id' => $ticket->id,
+                    'number' => $ticket->public_number,
+                    'priority' => $ticket->priority->value,
+                    'service' => $ticket->service->name,
+                ]),
             'refreshed_at' => now()->toIso8601String(),
         ]]);
     }

@@ -25,7 +25,7 @@ class TicketController extends Controller
         Gate::authorize('viewAny', Ticket::class);
         $tickets = Ticket::query()
             ->where('user_id', $request->user()->id)
-            ->with(['branch', 'service', 'queue', 'statusHistory'])
+            ->with(['branch', 'service', 'queue', 'appointment', 'statusHistory'])
             ->latest()
             ->limit(30)
             ->get();
@@ -36,7 +36,7 @@ class TicketController extends Controller
     public function store(StoreTicketRequest $request): JsonResource
     {
         $service = Service::query()->findOrFail($request->integer('service_id'));
-        $ticket = $this->queueManager->join($request->user(), $service);
+        $ticket = $this->queueManager->join($request->user(), $service, $request->integer('visitors_count', 1));
 
         return new TicketResource($ticket);
     }
@@ -46,7 +46,7 @@ class TicketController extends Controller
         $ticket = Ticket::query()
             ->where('user_id', $request->user()->id)
             ->whereIn('status', array_map(fn (TicketStatus $status): string => $status->value, TicketStatus::active()))
-            ->with(['branch', 'service', 'queue', 'statusHistory'])
+            ->with(['branch', 'service', 'queue', 'appointment', 'statusHistory'])
             ->latest()
             ->first();
 
@@ -59,7 +59,7 @@ class TicketController extends Controller
     {
         Gate::authorize('view', $ticket);
 
-        return new TicketResource($ticket->load(['branch', 'service', 'queue', 'statusHistory']));
+        return new TicketResource($ticket->load(['branch', 'service', 'queue', 'appointment', 'statusHistory']));
     }
 
     public function cancel(Request $request, Ticket $ticket): JsonResource
@@ -68,20 +68,25 @@ class TicketController extends Controller
 
         $ticket = DB::transaction(function () use ($request, $ticket): Ticket {
             $lockedTicket = Ticket::query()->lockForUpdate()->findOrFail($ticket->id);
-            if ($lockedTicket->status !== TicketStatus::Waiting) {
-                throw ValidationException::withMessages(['ticket' => ['Only a waiting ticket can be cancelled.']]);
+            if (! in_array($lockedTicket->status, [TicketStatus::Reserved, TicketStatus::Waiting], true)) {
+                throw ValidationException::withMessages(['ticket' => ['Only a reserved or waiting ticket can be cancelled.']]);
             }
 
+            $fromStatus = $lockedTicket->status;
             $lockedTicket->update(['status' => TicketStatus::Cancelled, 'cancelled_at' => now()]);
+            $lockedTicket->appointment?->update(['status' => 'cancelled']);
             $lockedTicket->statusHistory()->create([
                 'actor_id' => $request->user()->id,
-                'from_status' => TicketStatus::Waiting,
+                'event_type' => 'status',
+                'from_status' => $fromStatus,
                 'to_status' => TicketStatus::Cancelled,
+                'from_priority' => $lockedTicket->priority,
+                'to_priority' => $lockedTicket->priority,
                 'reason' => 'Customer cancelled the ticket.',
                 'occurred_at' => now(),
             ]);
 
-            return $lockedTicket->load(['branch', 'service', 'queue', 'statusHistory']);
+            return $lockedTicket->load(['branch', 'service', 'queue', 'appointment', 'statusHistory']);
         });
 
         return new TicketResource($ticket);

@@ -22,6 +22,9 @@ class StoreTicketRequest extends FormRequest
      */
     public function rules(): array
     {
-        return ['service_id' => ['required', 'integer', 'exists:services,id']];
+        return [
+            'service_id' => ['required', 'integer', 'exists:services,id'],
+            'visitors_count' => ['sometimes', 'integer', 'between:1,5'],
+        ];
     }
 }

@@ -58,10 +58,12 @@ class CounterWorkflowTest extends TestCase
         Sanctum::actingAs($staff);
 
         $this->postJson("/api/v1/staff/counters/{$counter->id}/call-next")->assertOk();
+        $this->travel(2)->minutes();
         $this->postJson("/api/v1/staff/counters/{$counter->id}/tickets/{$ticket->id}/skip")->assertOk();
         $this->postJson("/api/v1/staff/counters/{$counter->id}/tickets/{$ticket->id}/restore")
             ->assertOk()->assertJsonPath('data.status', 'waiting')->assertJsonPath('data.priority', 'restored');
         $this->postJson("/api/v1/staff/counters/{$counter->id}/call-next")->assertOk();
+        $this->travel(2)->minutes();
         $this->postJson("/api/v1/staff/counters/{$counter->id}/tickets/{$ticket->id}/skip")->assertOk();
         $this->postJson("/api/v1/staff/counters/{$counter->id}/tickets/{$ticket->id}/restore")
             ->assertUnprocessable()->assertJsonPath('error.details.ticket.0', 'A skipped ticket can only be restored once.');

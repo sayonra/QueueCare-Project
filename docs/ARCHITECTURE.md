@@ -67,6 +67,22 @@ The API derives people ahead from earlier active ticket sequences and returns th
 
 `call-next` locks the counter and selected ticket inside a database transaction. Eligibility uses the recorded priority order and waiting time. A counter cannot claim another ticket while one is called or serving. Restore moves a skipped ticket to the back with `restored` priority and is allowed once. The portal, mobile ticket, dashboard, and display poll the API; a later sprint can replace polling with broadcasts without changing transition ownership.
 
+## Advanced service flow API
+
+| Method/path | Purpose | Role |
+| --- | --- | --- |
+| `GET/POST /api/v1/appointments` | List or reserve a scheduled visit for one to five visitors | Customer |
+| `POST /api/v1/tickets/{ticket}/check-in` | Activate a reserved ticket after scanning the branch QR | Ticket owner |
+| `POST /api/v1/tickets/{ticket}/transfer` | Return a called/serving ticket to waiting for a compatible target counter | Assigned staff/manager/admin |
+| `POST /api/v1/tickets/{ticket}/priority` | Set emergency, accessibility, or standard priority with a reason | Branch manager/admin |
+| `POST /api/v1/device-tokens` | Upsert the signed-in user's Expo push token | Authenticated |
+
+Scheduled tickets are issued immediately in `Reserved` with `scheduled` priority. The arrival window opens 30 minutes before the appointment and closes 15 minutes after it. A late attempt changes the appointment to `missed`, cancels the ticket, and records a `late_arrival` event. Branch QR signs encode `queuecare://branch/{branch_id}`; the mobile app verifies the branch before submitting the ticket's private check-in token.
+
+`ticket_status_history` is also the append-only audit log for `check_in`, `transfer`, `priority`, and `late_arrival` events. Transfer records source and target counter IDs. Priority changes record old and new tiers. Both require a non-empty reason and actor. The target counter receives exclusive call eligibility through `preferred_counter_id` until it claims the ticket.
+
+Notifications use a database outbox. Customer-impacting events enqueue a row inside the same database transaction as the queue change. `php artisan notifications:retry` sends due rows through Expo Push Service, applies exponential backoff after transient failures, and stops after five attempts. A notification with no registered device is retained as delivered in the in-app record. Remote push requires an Expo development/production build and an EAS project ID; Expo Go on Android does not support remote notifications for this SDK.
+
 ## Authentication and privacy
 
 Laravel Sanctum token authentication is implemented. Role and branch scope are enforced in Laravel policies and controller boundary checks. Public displays will receive ticket numbers and counter labels only. Keep keys for Firebase, Google Maps, and broadcasts in environment variables; no secrets in client source.
@@ -77,4 +93,5 @@ Laravel Sanctum token authentication is implemented. Role and branch scope are e
 - CI: MySQL 8.4 service for migration verification; PHPUnit uses SQLite in memory for fast feature tests.
 - Web: `NEXT_PUBLIC_API_BASE_URL` (only the non-secret API origin).
 - Mobile: `EXPO_PUBLIC_API_BASE_URL` set to a LAN-reachable API address during device testing.
-- API: database, app URL, Sanctum stateful domains/CORS, broadcast/FCM credentials as later features require.
+- API: database, app URL, Sanctum stateful domains/CORS, and outbound HTTPS access to Expo Push Service.
+- Mobile: set `extra.eas.projectId` through EAS configuration before testing remote push on a physical development build.

@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { SessionProvider } from '@/context/session';
+import { PushRegistration } from '@/components/push-registration';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -11,6 +12,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   return (
     <SessionProvider>
+      <PushRegistration />
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />
         <Stack>
@@ -18,6 +20,7 @@ export default function RootLayout() {
           <Stack.Screen name="login" options={{ title: 'Sign in', presentation: 'modal' }} />
           <Stack.Screen name="branch/[id]" options={{ title: 'Branch details' }} />
           <Stack.Screen name="ticket" options={{ title: 'Your ticket' }} />
+          <Stack.Screen name="check-in" options={{ title: 'QR check-in', presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>
     </SessionProvider>

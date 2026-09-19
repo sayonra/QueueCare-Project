@@ -39,7 +39,7 @@ class QueueManager
     {
         $service->loadMissing(['branch.operatingHours']);
         $queue = $service->queues()->where('local_date', $this->localDate($service->branch))->first();
-        $waitingCount = $queue?->tickets()->where('status', TicketStatus::Waiting->value)->count() ?? 0;
+        $waitingCount = (int) ($queue?->tickets()->where('status', TicketStatus::Waiting->value)->sum('visitors_count') ?? 0);
         $activeCounters = $service->counters()->where('counters.is_active', true)->where('counters.is_paused', false)->count();
 
         return [
@@ -53,13 +53,13 @@ class QueueManager
         ];
     }
 
-    public function join(User $customer, Service $requestedService): Ticket
+    public function join(User $customer, Service $requestedService, int $visitorsCount = 1): Ticket
     {
         if ($customer->role !== 'customer') {
             throw ValidationException::withMessages(['account' => ['Only customer accounts can join a queue.']]);
         }
 
-        return DB::transaction(function () use ($customer, $requestedService): Ticket {
+        return DB::transaction(function () use ($customer, $requestedService, $visitorsCount): Ticket {
             User::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
             $service = Service::query()->with(['branch.operatingHours'])->lockForUpdate()->findOrFail($requestedService->id);
 
@@ -101,6 +101,7 @@ class QueueManager
                 'public_number' => sprintf('%s-%03d', strtoupper($service->code), $sequence),
                 'status' => TicketStatus::Waiting,
                 'priority' => TicketPriority::Standard,
+                'visitors_count' => $visitorsCount,
                 'waiting_since' => now(),
             ]);
             $queue->increment('next_sequence');
@@ -122,7 +123,7 @@ class QueueManager
         $peopleAhead = $ticket->queue->tickets()
             ->where('sequence', '<', $ticket->sequence)
             ->whereIn('status', [TicketStatus::Waiting->value, TicketStatus::Called->value, TicketStatus::Serving->value])
-            ->count();
+            ->sum('visitors_count');
         $activeCounters = $ticket->service->counters()->where('counters.is_active', true)->where('counters.is_paused', false)->count();
 
         return [

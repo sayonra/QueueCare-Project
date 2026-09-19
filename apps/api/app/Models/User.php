@@ -29,6 +29,16 @@ class User extends Authenticatable
         return $this->hasMany(Ticket::class);
     }
 
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';

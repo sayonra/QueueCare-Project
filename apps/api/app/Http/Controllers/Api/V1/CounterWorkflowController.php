@@ -55,6 +55,7 @@ class CounterWorkflowController extends Controller
             ->first();
         $waitingQuery = (clone $ticketQuery)->where('status', TicketStatus::Waiting->value);
         $waiting = (clone $waitingQuery)
+            ->where(fn ($query) => $query->whereNull('preferred_counter_id')->orWhere('preferred_counter_id', $counter->id))
             ->orderByRaw("CASE priority WHEN 'emergency' THEN 1 WHEN 'accessibility' THEN 2 WHEN 'scheduled' THEN 3 WHEN 'standard' THEN 4 WHEN 'restored' THEN 5 ELSE 6 END")
             ->orderBy('waiting_since')
             ->with(['branch', 'service', 'queue', 'counter', 'statusHistory'])
@@ -70,6 +71,10 @@ class CounterWorkflowController extends Controller
             ->with(['branch', 'service', 'queue', 'counter', 'statusHistory'])
             ->latest('skipped_at')->limit(10)->get());
         $counter->setAttribute('_waiting_count', $waitingQuery->count());
+        $counter->setAttribute('_transfer_targets', Counter::query()
+            ->where('branch_id', $counter->branch_id)->whereKeyNot($counter->id)
+            ->where('is_active', true)->where('is_paused', false)->whereHas('services', fn ($query) => $query->whereIn('services.id', $counter->services->modelKeys()))
+            ->orderBy('label')->get(['id', 'label']));
 
         return $counter;
     }

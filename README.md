@@ -34,11 +34,13 @@ cd apps/api && php artisan serve
 
 The web portal runs at `http://localhost:3000`; Laravel uses `http://localhost:8000`. `GET http://localhost:8000/api/v1/health` confirms the API can reach MySQL. Expo prints a QR code for a device or simulator. A phone must reach the API through the Mac's LAN address rather than `localhost`.
 
+For push delivery, configure an EAS project ID and use an Expo development build on a physical device. Process the notification outbox from the API with `php artisan notifications:retry`; production should schedule that command every minute. Branch check-in QR signs encode `queuecare://branch/{branch_id}`.
+
 Do not commit `.env` files. If credentials change after the first MySQL start, update the existing database user or deliberately recreate the named volume; init scripts run only for a new volume.
 
 ## Current stage
 
-Sprint 3 is complete. Counter staff can call, recall, serve, skip, restore, and complete tickets or pause an idle counter from the responsive web portal. Laravel enforces every transition, selects the next ticket inside a locking transaction, and appends the actor and reason to ticket history. The manager dashboard, customer ticket, staff counter, and privacy-safe public display converge through five-second polling. Sprint 4 adds QR arrival, appointments, transfers, controlled priorities, and push notifications. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), and [sprint plan](docs/SPRINTS.md).
+Sprint 4 is complete. Customers can join with a group of up to five or reserve a visit, scan the branch QR during the arrival window, and receive push updates. Staff can transfer tickets to compatible counters, while managers can apply audited priority changes. Laravel enforces the two-minute absence grace period, records late arrivals and every transfer/priority change, and retries failed notification delivery. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), and [sprint plan](docs/SPRINTS.md).
 
 ### Demonstration accounts
 

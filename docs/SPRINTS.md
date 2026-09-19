@@ -34,11 +34,11 @@ Two-week sprints are a planning assumption. Re-estimate after Sprint 0. Each ite
 - [x] Five-second polling, basic admin metrics, and a privacy-safe public display.
 - [x] Acceptance: atomic selection prevents two counters from calling the same ticket; customer, staff, manager, and display read one server state.
 
-## Sprint 4 — advanced service flow
+## Sprint 4 — advanced service flow (complete)
 
-- QR arrival check-in, scheduled appointments, transfer, and controlled priorities.
-- Push notifications and failure/retry handling.
-- Acceptance: all priority/transfer changes have actor and reason; late/absent cases are documented.
+- [x] QR arrival check-in, scheduled appointments, group visits, transfers, and controlled priorities.
+- [x] Expo push-token registration, notification outbox, delivery command, and exponential retry handling.
+- [x] Acceptance: all priority/transfer changes record actor, reason, old/new values, and time; late arrivals and the two-minute absent grace period are enforced and documented.
 
 ## Sprint 5 — reporting and polish
 
@@ -49,6 +49,6 @@ Two-week sprints are a planning assumption. Re-estimate after Sprint 0. Each ite
 ## Decisions and risks to revisit with usage data
 
 - Whether the two-minute called grace period fits each service and branch.
-- Whether scheduled arrivals need a branch-specific check-in window.
+- Whether branches need to override the initial 30-minutes-before/15-minutes-after appointment check-in window.
 - How group size changes the service-time model after Phase 2 launches.
-- Which notification channel is reliable when the app is closed?
+- Whether production should continue with Expo Push Service or move to direct FCM/APNs after delivery data is available.

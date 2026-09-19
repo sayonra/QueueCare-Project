@@ -27,6 +27,7 @@ class StaffCounterResource extends JsonResource
             'waiting_tickets' => TicketResource::collection($this->getAttribute('_waiting_tickets') ?? collect()),
             'skipped_tickets' => TicketResource::collection($this->getAttribute('_skipped_tickets') ?? collect()),
             'waiting_count' => $this->getAttribute('_waiting_count') ?? 0,
+            'transfer_targets' => $this->getAttribute('_transfer_targets') ?? [],
             'refreshed_at' => now()->toIso8601String(),
         ];
     }

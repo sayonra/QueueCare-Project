@@ -45,6 +45,8 @@ stateDiagram-v2
 
 **Sprint 0 policy:** “Join now” creates a `Waiting` ticket immediately, including when the customer is remote. `Reserved` is for scheduled visits in Phase 2; a scheduled ticket becomes `Waiting` only when the customer checks in during the branch's arrival window. QR check-in is an optional arrival method in Phase 2 and does not block MVP remote joining. If a called customer is absent, staff may skip after a two-minute grace period; the MVP has no automatic cancellation of a waiting ticket. A skipped ticket can be restored once to the lowest priority tier. These rules keep the MVP usable without requiring location or QR access.
 
+**Sprint 4 policy:** the initial appointment arrival window is 30 minutes before through 15 minutes after the scheduled time. An early scan is rejected without changing the visit. A scan after the window records the appointment as missed, cancels its reserved ticket, and appends a `late_arrival` audit event. Branch signs use `queuecare://branch/{branch_id}` QR values. Groups of one to five share one ticket; queue load and wait estimates use visitor count. Staff transfers require a compatible active target counter and a reason. Only branch managers and super admins can apply emergency, accessibility, or standard overrides.
+
 ## Queue rules
 
 Priority order: emergency; accessibility (elderly, pregnant, or disabled); scheduled appointment; standard walk-in; restored skipped ticket. Priority changes require actor, reason, old/new priority, and timestamp in an append-only audit event. Use server time for sequencing; define tie-breakers by check-in time and ticket ID.
