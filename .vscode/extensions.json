@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "expo.vscode-expo-tools",
+    "laravel.vscode-laravel",
+    "xdebug.php-debug"
+  ]
+}

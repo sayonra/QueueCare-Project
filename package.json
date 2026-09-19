@@ -1,0 +1,14 @@
+{
+  "name": "queuecare",
+  "private": true,
+  "version": "0.1.0",
+  "description": "QueueCare project workspace",
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:mobile": "npm --prefix apps/mobile run start",
+    "lint:web": "npm --prefix apps/web run lint",
+    "typecheck:web": "npm --prefix apps/web run typecheck",
+    "typecheck:mobile": "npm --prefix apps/mobile run typecheck",
+    "build:web": "npm --prefix apps/web run build"
+  }
+}

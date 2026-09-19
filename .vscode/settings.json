@@ -1,0 +1,10 @@
+{
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/.cache": true,
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/vendor": true
+  },
+  "typescript.tsdk": "apps/web/node_modules/typescript/lib"
+}

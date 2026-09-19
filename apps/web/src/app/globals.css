@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f8ff;
+  --foreground: #0b1736;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+
+@layer components {
+  .field {
+    @apply block h-11 w-full rounded-xl border border-[#DDE7F5] bg-white px-3 text-sm text-[#0B1736] outline-none transition focus:border-[#0B5CFF] focus:ring-4 focus:ring-[#DCEBFF];
+  }
+  .form-label { @apply block text-sm font-bold text-[#334766]; }
+  .primary-button { @apply h-11 rounded-xl bg-[#0B5CFF] px-5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-[#084BCF] disabled:cursor-wait disabled:opacity-60; }
+  .secondary-button { @apply h-11 rounded-xl border border-[#DDE7F5] bg-white px-4 text-sm font-bold text-[#0B5CFF] transition hover:bg-[#DCEBFF]; }
+}

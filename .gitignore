@@ -1,0 +1,13 @@
+.DS_Store
+.cache/
+.expo/
+node_modules/
+vendor/
+.next/
+dist/
+coverage/
+*.log
+.env
+.env.*.local
+apps/api/database/*.sqlite
+!apps/api/database/.gitignore
