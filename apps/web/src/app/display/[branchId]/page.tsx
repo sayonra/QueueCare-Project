@@ -25,7 +25,7 @@ export default function PublicDisplay() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "The queue display is unavailable."); }
   }, [branchId]);
 
-  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
+  useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); const timer = window.setInterval(() => void refresh(), 5000); return () => { window.clearTimeout(start); window.clearInterval(timer); }; }, [refresh]);
 
   return <main className="min-h-screen overflow-hidden bg-[#06122F] p-6 text-white sm:p-10">
     <header className="mx-auto flex max-w-[1500px] items-center justify-between"><div className="flex items-center gap-4"><span className="grid size-14 place-items-center rounded-2xl bg-[#0B5CFF] text-2xl font-black">Q</span><div><p className="text-2xl font-black">QueueCare</p><p className="text-sm text-blue-200">{data?.name ?? "Live queue"}</p></div></div><div className="flex items-center gap-2 text-sm text-blue-200"><span className="size-2.5 animate-pulse rounded-full bg-[#72DDB8]"/>Live · refreshes every 5 seconds</div></header>

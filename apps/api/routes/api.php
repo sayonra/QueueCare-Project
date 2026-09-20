@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\CustomerBranchController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\PublicDisplayController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ServiceController;
 use App\Http\Controllers\Api\V1\StaffAssignmentController;
 use App\Http\Controllers\Api\V1\StaffCounterController;
@@ -69,5 +70,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/staff/counters/{counter}/tickets/{ticket}/{action}', [CounterWorkflowController::class, 'transition'])
             ->whereIn('action', ['recall', 'serve', 'skip', 'restore', 'complete']);
         Route::get('/dashboard/{branch}', [DashboardController::class, 'show']);
+        Route::get('/reports/{branch}', [ReportController::class, 'show']);
+        Route::get('/reports/{branch}/csv', [ReportController::class, 'csv']);
+        Route::get('/reports/{branch}/pdf', [ReportController::class, 'pdf']);
     });
 });

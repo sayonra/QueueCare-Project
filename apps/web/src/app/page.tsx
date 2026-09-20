@@ -8,6 +8,15 @@ type User = { id: number; name: string; email: string; role: string };
 type Ticket = { id: number; number: string; status: string; priority: string; people_ahead: number; estimated_wait_minutes: number | null; service: { id: number; name: string; code: string }; counter: { id: number; label: string } | null };
 type CounterSnapshot = Counter & { branch: { id: number; name: string }; current_ticket: Ticket | null; waiting_tickets: Ticket[]; skipped_tickets: Ticket[]; waiting_count: number; transfer_targets: { id: number; label: string }[]; refreshed_at: string };
 type Dashboard = { waiting_now: number; active_counters: number; served_today: number; skipped_today: number; cancelled_today: number; live_activity: { number: string; status: string; service: string; counter: string | null; updated_at: string }[]; waiting_tickets: { id: number; number: string; priority: string; service: string }[]; refreshed_at: string };
+type Report = {
+  branch: { id: number; name: string; timezone: string }; range: { from: string; to: string };
+  summary: { total_tickets: number; served: number; cancelled: number; skipped: number; average_wait_minutes: number; average_service_minutes: number; cancellation_rate: number; skip_rate: number };
+  daily: { date: string; tickets: number; served: number }[]; peak_hours: { hour: number; tickets: number }[];
+  services: { service: string; code: string; tickets: number; served: number; average_wait_minutes: number; average_service_minutes: number }[];
+  staff: { name: string; served: number; average_service_minutes: number }[];
+  branch_comparison: { branch: string; tickets: number; served: number; average_wait_minutes: number; average_service_minutes: number; cancellation_rate: number }[];
+  generated_at: string;
+};
 type Hour = { id: number; day_of_week: number; opens_at: string | null; closes_at: string | null; is_closed: boolean };
 type Assignment = { id: number; user: { name: string; email: string; role: string }; counter: Counter | null };
 type Branch = {
@@ -18,6 +27,10 @@ type Branch = {
 const rawApi = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 const API = rawApi.endsWith("/api/v1") ? rawApi : `${rawApi.replace(/\/$/, "")}/api/v1`;
 const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const copy = {
+  en: { workspace: "Workspace", dashboard: "Live dashboard", setup: "Branch setup", reports: "Reports", operations: "Live operations", configuration: "Branch configuration", insights: "Reports & insights", signOut: "Sign out", manager: "Manager workspace" },
+  km: { workspace: "កន្លែងធ្វើការ", dashboard: "ផ្ទាំងទិន្នន័យផ្ទាល់", setup: "រៀបចំសាខា", reports: "របាយការណ៍", operations: "ប្រតិបត្តិការផ្ទាល់", configuration: "ការកំណត់សាខា", insights: "របាយការណ៍ និងទិន្នន័យ", signOut: "ចាកចេញ", manager: "កន្លែងធ្វើការអ្នកគ្រប់គ្រង" },
+};
 
 async function apiRequest<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, {
@@ -36,7 +49,9 @@ function Brand() {
 export default function Home() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<User>();
-  const [view, setView] = useState<"dashboard" | "setup">("dashboard");
+  const [view, setView] = useState<"dashboard" | "setup" | "reports">("dashboard");
+  const [language, setLanguage] = useState<"en" | "km">("en");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedId, setSelectedId] = useState<number>();
   const [loading, setLoading] = useState(false);
@@ -55,37 +70,40 @@ export default function Home() {
   const branch = useMemo(() => branches.find((item) => item.id === selectedId) ?? branches[0], [branches, selectedId]);
   const refresh = () => token && loadBranches(token);
   const notify = (text: string) => { setMessage(text); setTimeout(() => setMessage(""), 2500); };
+  const t = copy[language];
 
   if (!token || !user) return <Login onLogin={(accessToken, account) => { setToken(accessToken); setUser(account); if (account.role !== "counter_staff") void loadBranches(accessToken); }} />;
   if (user.role === "counter_staff") return <StaffWorkspace token={token} user={user} onSignOut={() => { setToken(""); setUser(undefined); }} />;
 
   return (
-    <main className="min-h-screen bg-[#F4F8FF] text-[#0B1736]">
+    <main data-theme={theme} lang={language} className="app-shell min-h-screen bg-[#F4F8FF] text-[#0B1736]">
       <div className="mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[248px_1fr]">
         <aside className="hidden border-r border-[#DDE7F5] bg-white/80 px-5 py-7 backdrop-blur lg:flex lg:flex-col">
           <Brand />
-          <p className="mt-10 px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#7D8EAA]">Workspace</p>
+          <p className="mt-10 px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#7D8EAA]">{t.workspace}</p>
           <nav className="mt-3 space-y-1 text-sm font-semibold">
-            <button onClick={() => setView("dashboard")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "dashboard" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌁</b> Live dashboard</button>
-            <button onClick={() => setView("setup")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "setup" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌂</b> Branch setup</button>
-            <span className="flex items-center gap-3 rounded-xl px-3 py-3 text-[#526584]"><b className="text-[#9CAAC0]">▦</b> Reports<small className="ml-auto rounded-full bg-[#EEF3FA] px-2 py-0.5">Sprint 5</small></span>
+            <button onClick={() => setView("dashboard")} aria-current={view === "dashboard" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "dashboard" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌁</b> {t.dashboard}</button>
+            <button onClick={() => setView("setup")} aria-current={view === "setup" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "setup" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌂</b> {t.setup}</button>
+            <button onClick={() => setView("reports")} aria-current={view === "reports" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "reports" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>▦</b> {t.reports}</button>
           </nav>
-          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 4</p><p className="mt-2 text-sm font-bold">Advanced service flow</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Appointments · QR · transfers</p></div>
+          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 5</p><p className="mt-2 text-sm font-bold">Reporting & portfolio polish</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Reports · bilingual · accessible</p></div>
         </aside>
 
         <section className="min-w-0 px-4 py-5 sm:px-7 lg:px-10 lg:py-7">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div className="lg:hidden"><Brand /></div>
-            <div className="hidden lg:block"><p className="text-sm text-[#526584]">Manager workspace · {user.name}</p><h1 className="text-2xl font-extrabold tracking-tight">{view === "dashboard" ? "Live operations" : "Branch configuration"}</h1></div>
+            <div className="hidden lg:block"><p className="text-sm text-[#526584]">{t.manager} · {user.name}</p><h1 className="text-2xl font-extrabold tracking-tight">{view === "dashboard" ? t.operations : view === "reports" ? t.insights : t.configuration}</h1></div>
             <div className="flex items-center gap-3">
               {branches.length > 1 && <select aria-label="Select branch" value={branch?.id} onChange={(event) => setSelectedId(Number(event.target.value))} className="field w-auto">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>}
-              <button onClick={() => { setToken(""); setUser(undefined); setBranches([]); }} className="secondary-button">Sign out</button>
+              <button onClick={() => setLanguage((value) => value === "en" ? "km" : "en")} className="secondary-button" aria-label="Switch language">{language === "en" ? "ខ្មែរ" : "EN"}</button>
+              <button onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} className="secondary-button" aria-label={`Use ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? "◐" : "☀"}</button>
+              <button onClick={() => { setToken(""); setUser(undefined); setBranches([]); }} className="secondary-button">{t.signOut}</button>
             </div>
           </header>
 
           {error && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           {message && <div className="fixed right-6 top-6 z-50 rounded-2xl bg-[#0B1736] px-5 py-3 text-sm font-semibold text-white shadow-xl">{message}</div>}
-          {loading && !branch ? <div className="mt-10 grid gap-5 md:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div> : branch && view === "dashboard" ? <DashboardWorkspace branch={branch} token={token} /> : branch ? (
+          {loading && !branch ? <div className="mt-10 grid gap-5 md:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div> : branch && view === "dashboard" ? <DashboardWorkspace branch={branch} token={token} /> : branch && view === "reports" ? <ReportsWorkspace branch={branch} token={token} language={language} /> : branch ? (
             <div className="mt-7 space-y-6">
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Metric label="Services" value={branch.services.length} detail={`${branch.services.filter((item) => item.is_active).length} active`} color="blue" />
@@ -141,8 +159,8 @@ function StaffWorkspace({ token, user, onSignOut }: { token: string; user: User;
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not refresh the counter."); }
   }, [counterId, token]);
 
-  useEffect(() => { void loadCounters(); }, [loadCounters]);
-  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
+  useEffect(() => { const start = window.setTimeout(() => void loadCounters(), 0); return () => window.clearTimeout(start); }, [loadCounters]);
+  useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); const timer = window.setInterval(() => void refresh(), 5000); return () => { window.clearTimeout(start); window.clearInterval(timer); }; }, [refresh]);
 
   async function command(path: string, body?: object) {
     setBusy(true); setError("");
@@ -174,11 +192,64 @@ function DashboardWorkspace({ branch, token }: { branch: Branch; token: string }
   const [dashboard, setDashboard] = useState<Dashboard>();
   const [error, setError] = useState("");
   const refresh = useCallback(async () => { try { const result = await apiRequest<{ data: Dashboard }>(`/dashboard/${branch.id}`, token); setDashboard(result.data); setError(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load dashboard."); } }, [branch.id, token]);
-  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
+  useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); const timer = window.setInterval(() => void refresh(), 5000); return () => { window.clearTimeout(start); window.clearInterval(timer); }; }, [refresh]);
   async function changePriority(ticketId: number, priority: string) { const reason = window.prompt(`Reason for ${priority} priority (required)`); if (!reason) return; try { await apiRequest(`/tickets/${ticketId}/priority`, token, { method: "POST", body: JSON.stringify({ priority, reason }) }); await refresh(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update priority."); } }
   if (error) return <div className="mt-6 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!dashboard) return <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1,2,3,4].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div>;
   return <div className="mt-7 space-y-6"><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Waiting now" value={dashboard.waiting_now} detail="Customers in queue" color="blue"/><Metric label="Active counters" value={dashboard.active_counters} detail="Open and available" color="mint"/><Metric label="Served today" value={dashboard.served_today} detail="Completed tickets" color="violet"/><Metric label="Exceptions" value={dashboard.skipped_today + dashboard.cancelled_today} detail={`${dashboard.skipped_today} skipped · ${dashboard.cancelled_today} cancelled`} color="amber"/></section><div className="grid gap-6 xl:grid-cols-2"><Panel title="Priority controls" subtitle="Every change records the manager, old/new tier, reason, and time."><div className="space-y-2">{dashboard.waiting_tickets.map((ticket) => <div key={ticket.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#F4F8FF] p-3"><div className="flex-1"><b>{ticket.number}</b><p className="text-xs text-[#7D8EAA]">{ticket.service} · {ticket.priority}</p></div><button onClick={() => changePriority(ticket.id, "accessibility")} className="rounded-xl bg-[#DDF8EF] px-3 py-2 text-xs font-black text-[#0D7C59]">Accessibility</button><button onClick={() => changePriority(ticket.id, "emergency")} className="rounded-xl bg-[#FFF0F3] px-3 py-2 text-xs font-black text-[#B42345]">Emergency</button></div>)}{!dashboard.waiting_tickets.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No waiting tickets.</p>}</div></Panel><Panel title="Live queue activity" subtitle="Latest ticket changes across this branch."><div className="overflow-x-auto"><table className="w-full min-w-[480px] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-[#7D8EAA]"><tr><th className="pb-3">Ticket</th><th className="pb-3">Service</th><th className="pb-3">Counter</th><th className="pb-3">Status</th></tr></thead><tbody>{dashboard.live_activity.map((item) => <tr key={`${item.number}-${item.updated_at}`} className="border-t border-[#E4ECF7]"><td className="py-4 font-black">{item.number}</td><td>{item.service}</td><td>{item.counter ?? "—"}</td><td><span className="rounded-full bg-[#DCEBFF] px-3 py-1 text-xs font-bold capitalize text-[#0B5CFF]">{item.status}</span></td></tr>)}</tbody></table></div></Panel></div><a href={`/display/${branch.id}`} target="_blank" className="inline-flex h-11 items-center rounded-xl bg-[#0B1736] px-5 text-sm font-bold text-white">Open public display ↗</a></div>;
+}
+
+function ReportsWorkspace({ branch, token, language }: { branch: Branch; token: string; language: "en" | "km" }) {
+  const [report, setReport] = useState<Report>();
+  const [from, setFrom] = useState(() => { const date = new Date(); date.setDate(date.getDate() - 29); return date.toISOString().slice(0, 10); });
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const labels = language === "km" ? {
+    title: "ទិដ្ឋភាពប្រតិបត្តិការ", subtitle: "ប្រៀបធៀបការរង់ចាំ សេវាកម្ម និងលទ្ធផលសាខា។", apply: "អនុវត្ត",
+    total: "សំបុត្រសរុប", served: "បានបម្រើ", wait: "ពេលរង់ចាំមធ្យម", service: "ពេលបម្រើមធ្យម",
+    trend: "និន្នាការប្រចាំថ្ងៃ", services: "លទ្ធផលសេវាកម្ម", branches: "ប្រៀបធៀបសាខា", staff: "លទ្ធផលបុគ្គលិក",
+  } : {
+    title: "Operational overview", subtitle: "Compare wait, service, and branch outcomes for the selected period.", apply: "Apply",
+    total: "Total tickets", served: "Served", wait: "Average wait", service: "Average service",
+    trend: "Daily demand", services: "Service performance", branches: "Branch comparison", staff: "Staff performance",
+  };
+
+  const refresh = useCallback(async () => {
+    setBusy(true); setError("");
+    try { const result = await apiRequest<{ data: Report }>(`/reports/${branch.id}?from=${from}&to=${to}`, token); setReport(result.data); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load the report."); }
+    finally { setBusy(false); }
+  }, [branch.id, from, to, token]);
+  useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); return () => window.clearTimeout(start); }, [refresh]);
+
+  async function download(format: "csv" | "pdf") {
+    setError("");
+    try {
+      const response = await fetch(`${API}/reports/${branch.id}/${format}?from=${from}&to=${to}`, { headers: { Accept: format === "pdf" ? "application/pdf" : "text/csv", Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error("The export could not be generated.");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = `queuecare-${branch.slug}-${from}-${to}.${format}`; link.click(); URL.revokeObjectURL(url);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "The export could not be generated."); }
+  }
+
+  const maximum = Math.max(1, ...(report?.daily.map((item) => item.tickets) ?? [1]));
+  return <div className="mt-7 space-y-6">
+    <section className="report-hero rounded-[32px] bg-[#0B1736] p-6 text-white sm:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#72DDB8]">QueueCare intelligence</p><h2 className="mt-3 text-3xl font-black tracking-tight">{labels.title}</h2><p className="mt-2 max-w-2xl text-sm text-[#C7D7F2]">{labels.subtitle}</p></div><div className="flex flex-wrap gap-2"><button onClick={() => download("csv")} className="h-11 rounded-xl bg-white/10 px-4 text-sm font-bold">Export CSV</button><button onClick={() => download("pdf")} className="h-11 rounded-xl bg-white px-4 text-sm font-bold text-[#0B1736]">Export PDF</button></div></div>
+      <form onSubmit={(event) => { event.preventDefault(); void refresh(); }} className="mt-7 flex flex-wrap items-end gap-3"><label className="text-xs font-bold text-blue-100">From<input aria-label="Report start date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="field mt-2 text-[#0B1736]" /></label><label className="text-xs font-bold text-blue-100">To<input aria-label="Report end date" type="date" value={to} onChange={(event) => setTo(event.target.value)} className="field mt-2 text-[#0B1736]" /></label><button disabled={busy} className="h-11 rounded-xl bg-[#72DDB8] px-5 text-sm font-black text-[#0B1736]">{busy ? "…" : labels.apply}</button></form>
+    </section>
+    {error && <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+    {!report ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1,2,3,4].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div> : <>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label={labels.total} value={report.summary.total_tickets} detail={`${report.summary.cancelled} cancelled`} color="blue"/><Metric label={labels.served} value={report.summary.served} detail={`${report.summary.skipped} skipped`} color="mint"/><Metric label={labels.wait} value={`${report.summary.average_wait_minutes} min`} detail="Waiting to first call" color="violet"/><Metric label={labels.service} value={`${report.summary.average_service_minutes} min`} detail="Service start to completion" color="amber"/></section>
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_.85fr]"><Panel title={labels.trend} subtitle={`${report.range.from} — ${report.range.to}`}><div className="flex h-56 items-end gap-2" aria-label="Daily ticket volume chart">{report.daily.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"><span className="text-[10px] font-bold text-[#526584] opacity-0 group-hover:opacity-100">{item.tickets}</span><div className="w-full rounded-t-lg bg-[#0B5CFF]" style={{ height: `${Math.max(3, (item.tickets / maximum) * 165)}px` }} /><span className="hidden text-[9px] text-[#7D8EAA] sm:block">{item.date.slice(5)}</span></div>)}</div></Panel><Panel title={labels.staff} subtitle="Completed tickets and average handling time."><div className="space-y-3">{report.staff.map((item, index) => <div key={item.name} className="flex items-center gap-3 rounded-2xl bg-[#F4F8FF] p-3"><span className="grid size-9 place-items-center rounded-xl bg-[#DCEBFF] text-xs font-black text-[#0B5CFF]">{index + 1}</span><div className="flex-1"><p className="text-sm font-black">{item.name}</p><p className="text-xs text-[#7D8EAA]">{item.average_service_minutes} min average</p></div><b>{item.served}</b></div>)}{!report.staff.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No completed service records.</p>}</div></Panel></div>
+      <div className="grid gap-6 xl:grid-cols-2"><ReportTable title={labels.services} headers={["Service", "Tickets", "Served", "Wait", "Service"]} rows={report.services.map((item) => [item.service, item.tickets, item.served, `${item.average_wait_minutes}m`, `${item.average_service_minutes}m`])}/><ReportTable title={labels.branches} headers={["Branch", "Tickets", "Served", "Wait", "Cancel"]} rows={report.branch_comparison.map((item) => [item.branch, item.tickets, item.served, `${item.average_wait_minutes}m`, `${item.cancellation_rate}%`])}/></div>
+    </>}
+  </div>;
+}
+
+function ReportTable({ title, headers, rows }: { title: string; headers: string[]; rows: (string | number)[][] }) {
+  return <Panel title={title} subtitle="Performance for the selected reporting period."><div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="text-xs uppercase tracking-wider text-[#7D8EAA]">{headers.map((header) => <th scope="col" key={header} className="pb-3">{header}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={String(row[0])} className="border-t border-[#E4ECF7]">{row.map((cell, index) => index === 0 ? <th scope="row" key={index} className="py-4 font-bold">{cell}</th> : <td key={index}>{cell}</td>)}</tr>)}</tbody></table></div></Panel>;
 }
 
 function Metric({ label, value, detail, color }: { label: string; value: string | number; detail: string; color: "blue" | "mint" | "violet" | "amber" }) {

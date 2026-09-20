@@ -40,7 +40,7 @@ Do not commit `.env` files. If credentials change after the first MySQL start, u
 
 ## Current stage
 
-Sprint 4 is complete. Customers can join with a group of up to five or reserve a visit, scan the branch QR during the arrival window, and receive push updates. Staff can transfer tickets to compatible counters, while managers can apply audited priority changes. Laravel enforces the two-minute absence grace period, records late arrivals and every transfer/priority change, and retries failed notification delivery. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), and [sprint plan](docs/SPRINTS.md).
+Sprint 5 is complete. Managers can inspect date-ranged wait and service metrics, compare branches and staff, and download real CSV/PDF reports. The web portal adds an explicit dark theme, English/Khmer controls, visible keyboard focus, and accessible report tables; mobile follows the device theme and provides bilingual navigation and core customer screens. Historical seed data supports a useful first-run demonstration, while CI validates the Laravel suite, formatting, web production build, and both TypeScript clients. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), [sprint plan](docs/SPRINTS.md), [release runbook](docs/RELEASE.md), and [demo script](docs/DEMO_SCRIPT.md).
 
 ### Demonstration accounts
 

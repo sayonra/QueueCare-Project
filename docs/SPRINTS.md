@@ -40,11 +40,12 @@ Two-week sprints are a planning assumption. Re-estimate after Sprint 0. Each ite
 - [x] Expo push-token registration, notification outbox, delivery command, and exponential retry handling.
 - [x] Acceptance: all priority/transfer changes record actor, reason, old/new values, and time; late arrivals and the two-minute absent grace period are enforced and documented.
 
-## Sprint 5 — reporting and polish
+## Sprint 5 — reporting and polish (complete)
 
-- Waiting/service duration reports, branch comparison, CSV/PDF export.
-- Khmer/English, dark mode, accessibility, visual refinement.
-- Automated end-to-end checks, demo data, deployment, and demo video.
+- [x] Waiting/service duration reports, branch comparison, CSV/PDF export.
+- [x] Khmer/English controls, system/mobile and explicit/web dark modes, accessibility, and visual refinement.
+- [x] Automated end-to-end checks and multi-branch historical demo data.
+- [x] Deployment runbook, CI release gate, and a repeatable portfolio demo video script.
 
 ## Decisions and risks to revisit with usage data
 

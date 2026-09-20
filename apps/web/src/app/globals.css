@@ -20,6 +20,34 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
+:focus-visible {
+  outline: 3px solid #70a7ff;
+  outline-offset: 3px;
+}
+
+.app-shell { transition: background-color .2s ease, color .2s ease; }
+.app-shell[data-theme="dark"] {
+  color-scheme: dark;
+  background: #071126 !important;
+  color: #f3f7ff !important;
+}
+.app-shell[data-theme="dark"] aside,
+.app-shell[data-theme="dark"] .bg-white,
+.app-shell[data-theme="dark"] .bg-white\/80 { background-color: #101e3b !important; }
+.app-shell[data-theme="dark"] .bg-\[\#F4F8FF\] { background-color: #0a1730 !important; }
+.app-shell[data-theme="dark"] .text-\[\#0B1736\] { color: #f3f7ff !important; }
+.app-shell[data-theme="dark"] .text-\[\#526584\],
+.app-shell[data-theme="dark"] .text-\[\#7D8EAA\] { color: #a9bad5 !important; }
+.app-shell[data-theme="dark"] .border-\[\#E4ECF7\],
+.app-shell[data-theme="dark"] .border-\[\#DDE7F5\] { border-color: #294064 !important; }
+.app-shell[data-theme="dark"] .field,
+.app-shell[data-theme="dark"] select { background-color: #0c1933; border-color: #365078; color: #f3f7ff; }
+.app-shell[data-theme="dark"] .report-hero { background-color: #101e3b !important; border: 1px solid #294064; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
 @layer components {
   .field {
     @apply block h-11 w-full rounded-xl border border-[#DDE7F5] bg-white px-3 text-sm text-[#0B1736] outline-none transition focus:border-[#0B5CFF] focus:ring-4 focus:ring-[#DCEBFF];
