@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminPlatformController;
 use App\Http\Controllers\Api\V1\AppointmentController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
@@ -73,5 +74,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/{branch}', [ReportController::class, 'show']);
         Route::get('/reports/{branch}/csv', [ReportController::class, 'csv']);
         Route::get('/reports/{branch}/pdf', [ReportController::class, 'pdf']);
+        Route::get('/admin/overview', [AdminPlatformController::class, 'overview']);
+        Route::get('/admin/users', [AdminPlatformController::class, 'users']);
+        Route::post('/admin/users', [AdminPlatformController::class, 'store']);
+        Route::patch('/admin/users/{user}', [AdminPlatformController::class, 'update']);
+        Route::get('/admin/activity-logs', [AdminPlatformController::class, 'activity']);
     });
 });

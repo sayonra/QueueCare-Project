@@ -27,6 +27,10 @@ QR arrival check-in; scheduled visits; push notifications; transfers; controlled
 
 Dark mode; refined animations; richer public display; automated tests and API docs; demo data/accounts; deployment and demonstration video.
 
+## Phase 4
+
+Platform governance for Super Admins: cross-branch health, account creation, role and suspension controls, token revocation, and a searchable activity trail. Access changes require a reason and retain actor, target, previous/new values, IP address, and timestamp.
+
 ## Core ticket states
 
 ```mermaid

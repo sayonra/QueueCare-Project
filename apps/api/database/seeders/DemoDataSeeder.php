@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\BranchOperatingHour;
 use App\Models\Counter;
@@ -124,6 +125,17 @@ class DemoDataSeeder extends Seeder
         );
 
         $customer = User::query()->where('email', 'customer@queuecare.test')->firstOrFail();
+        $admin = User::query()->where('email', 'admin@queuecare.test')->firstOrFail();
+        ActivityLog::query()->updateOrCreate(
+            ['action' => 'platform.demo_ready', 'subject_type' => 'user', 'subject_id' => $admin->id],
+            [
+                'actor_id' => $admin->id,
+                'description' => 'Prepared the QueueCare demonstration workspace.',
+                'metadata' => ['branches' => 2, 'accounts' => count($accounts)],
+                'ip_address' => '127.0.0.1',
+                'occurred_at' => now(),
+            ],
+        );
         $this->seedHistory($branch, $general, $counterOne, $customer, $staff, 0);
         $this->seedHistory($riverside, $riversideGeneral, $riversideCounter, $customer, $staff, 100);
     }

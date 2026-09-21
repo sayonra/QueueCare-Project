@@ -47,6 +47,14 @@ Two-week sprints are a planning assumption. Re-estimate after Sprint 0. Each ite
 - [x] Automated end-to-end checks and multi-branch historical demo data.
 - [x] Deployment runbook, CI release gate, and a repeatable portfolio demo video script.
 
+## Sprint 6 — platform governance (complete)
+
+- [x] Super Admin platform overview across branches, counters, accounts, and daily service volume.
+- [x] Searchable account directory with account creation, role changes, suspension, and restoration.
+- [x] Revoke active tokens on suspension and prevent self-lockout or removal of the final accessible admin.
+- [x] Immutable administration activity feed with actor, target, reason, before/after values, IP, and time.
+- [x] Acceptance: managers and staff are denied; every access change is audited and covered by feature tests.
+
 ## Decisions and risks to revisit with usage data
 
 - Whether the two-minute called grace period fits each service and branch.

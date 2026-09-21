@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type Service = { id: number; name: string; code: string; average_service_minutes: number; is_active: boolean };
 type Counter = { id: number; label: string; is_active: boolean; is_paused: boolean; services: Service[]; branch?: { id: number; name: string } };
-type User = { id: number; name: string; email: string; role: string };
+type User = { id: number; name: string; email: string; role: string; suspended_at?: string | null };
 type Ticket = { id: number; number: string; status: string; priority: string; people_ahead: number; estimated_wait_minutes: number | null; service: { id: number; name: string; code: string }; counter: { id: number; label: string } | null };
 type CounterSnapshot = Counter & { branch: { id: number; name: string }; current_ticket: Ticket | null; waiting_tickets: Ticket[]; skipped_tickets: Ticket[]; waiting_count: number; transfer_targets: { id: number; label: string }[]; refreshed_at: string };
 type Dashboard = { waiting_now: number; active_counters: number; served_today: number; skipped_today: number; cancelled_today: number; live_activity: { number: string; status: string; service: string; counter: string | null; updated_at: string }[]; waiting_tickets: { id: number; number: string; priority: string; service: string }[]; refreshed_at: string };
@@ -17,6 +17,9 @@ type Report = {
   branch_comparison: { branch: string; tickets: number; served: number; average_wait_minutes: number; average_service_minutes: number; cancellation_rate: number }[];
   generated_at: string;
 };
+type AdminUser = User & { created_at: string; last_active_at: string | null; assignments: { branch: string | null; counter: string | null }[] };
+type Activity = { id: number; action: string; description: string; actor: { id: number; name: string } | null; subject: { type: string; id: number | null }; metadata: Record<string, unknown> | null; ip_address: string | null; occurred_at: string };
+type AdminOverview = { branches: number; active_branches: number; active_counters: number; users: number; suspended_users: number; users_by_role: { customers: number; counter_staff: number; branch_managers: number; super_admins: number }; served_today: number; recent_activity: Activity[]; refreshed_at: string };
 type Hour = { id: number; day_of_week: number; opens_at: string | null; closes_at: string | null; is_closed: boolean };
 type Assignment = { id: number; user: { name: string; email: string; role: string }; counter: Counter | null };
 type Branch = {
@@ -28,8 +31,8 @@ const rawApi = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/ap
 const API = rawApi.endsWith("/api/v1") ? rawApi : `${rawApi.replace(/\/$/, "")}/api/v1`;
 const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const copy = {
-  en: { workspace: "Workspace", dashboard: "Live dashboard", setup: "Branch setup", reports: "Reports", operations: "Live operations", configuration: "Branch configuration", insights: "Reports & insights", signOut: "Sign out", manager: "Manager workspace" },
-  km: { workspace: "កន្លែងធ្វើការ", dashboard: "ផ្ទាំងទិន្នន័យផ្ទាល់", setup: "រៀបចំសាខា", reports: "របាយការណ៍", operations: "ប្រតិបត្តិការផ្ទាល់", configuration: "ការកំណត់សាខា", insights: "របាយការណ៍ និងទិន្នន័យ", signOut: "ចាកចេញ", manager: "កន្លែងធ្វើការអ្នកគ្រប់គ្រង" },
+  en: { workspace: "Workspace", dashboard: "Live dashboard", setup: "Branch setup", reports: "Reports", platform: "Platform admin", operations: "Live operations", configuration: "Branch configuration", insights: "Reports & insights", governance: "Platform governance", signOut: "Sign out", manager: "Manager workspace" },
+  km: { workspace: "កន្លែងធ្វើការ", dashboard: "ផ្ទាំងទិន្នន័យផ្ទាល់", setup: "រៀបចំសាខា", reports: "របាយការណ៍", platform: "គ្រប់គ្រងប្រព័ន្ធ", operations: "ប្រតិបត្តិការផ្ទាល់", configuration: "ការកំណត់សាខា", insights: "របាយការណ៍ និងទិន្នន័យ", governance: "អភិបាលកិច្ចប្រព័ន្ធ", signOut: "ចាកចេញ", manager: "កន្លែងធ្វើការអ្នកគ្រប់គ្រង" },
 };
 
 async function apiRequest<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
@@ -49,7 +52,7 @@ function Brand() {
 export default function Home() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<User>();
-  const [view, setView] = useState<"dashboard" | "setup" | "reports">("dashboard");
+  const [view, setView] = useState<"dashboard" | "setup" | "reports" | "platform">("dashboard");
   const [language, setLanguage] = useState<"en" | "km">("en");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -85,14 +88,15 @@ export default function Home() {
             <button onClick={() => setView("dashboard")} aria-current={view === "dashboard" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "dashboard" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌁</b> {t.dashboard}</button>
             <button onClick={() => setView("setup")} aria-current={view === "setup" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "setup" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>⌂</b> {t.setup}</button>
             <button onClick={() => setView("reports")} aria-current={view === "reports" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "reports" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>▦</b> {t.reports}</button>
+            {user.role === "super_admin" && <button onClick={() => setView("platform")} aria-current={view === "platform" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "platform" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>◎</b> {t.platform}</button>}
           </nav>
-          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 5</p><p className="mt-2 text-sm font-bold">Reporting & portfolio polish</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Reports · bilingual · accessible</p></div>
+          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 6</p><p className="mt-2 text-sm font-bold">Platform governance</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Accounts · access · audit</p></div>
         </aside>
 
         <section className="min-w-0 px-4 py-5 sm:px-7 lg:px-10 lg:py-7">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div className="lg:hidden"><Brand /></div>
-            <div className="hidden lg:block"><p className="text-sm text-[#526584]">{t.manager} · {user.name}</p><h1 className="text-2xl font-extrabold tracking-tight">{view === "dashboard" ? t.operations : view === "reports" ? t.insights : t.configuration}</h1></div>
+            <div className="hidden lg:block"><p className="text-sm text-[#526584]">{t.manager} · {user.name}</p><h1 className="text-2xl font-extrabold tracking-tight">{view === "dashboard" ? t.operations : view === "reports" ? t.insights : view === "platform" ? t.governance : t.configuration}</h1></div>
             <div className="flex items-center gap-3">
               {branches.length > 1 && <select aria-label="Select branch" value={branch?.id} onChange={(event) => setSelectedId(Number(event.target.value))} className="field w-auto">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>}
               <button onClick={() => setLanguage((value) => value === "en" ? "km" : "en")} className="secondary-button" aria-label="Switch language">{language === "en" ? "ខ្មែរ" : "EN"}</button>
@@ -103,7 +107,7 @@ export default function Home() {
 
           {error && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           {message && <div className="fixed right-6 top-6 z-50 rounded-2xl bg-[#0B1736] px-5 py-3 text-sm font-semibold text-white shadow-xl">{message}</div>}
-          {loading && !branch ? <div className="mt-10 grid gap-5 md:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div> : branch && view === "dashboard" ? <DashboardWorkspace branch={branch} token={token} /> : branch && view === "reports" ? <ReportsWorkspace branch={branch} token={token} language={language} /> : branch ? (
+          {view === "platform" && user.role === "super_admin" ? <PlatformWorkspace token={token} currentUserId={user.id} /> : loading && !branch ? <div className="mt-10 grid gap-5 md:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div> : branch && view === "dashboard" ? <DashboardWorkspace branch={branch} token={token} /> : branch && view === "reports" ? <ReportsWorkspace branch={branch} token={token} language={language} /> : branch ? (
             <div className="mt-7 space-y-6">
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Metric label="Services" value={branch.services.length} detail={`${branch.services.filter((item) => item.is_active).length} active`} color="blue" />
@@ -136,7 +140,7 @@ function Login({ onLogin }: { onLogin: (token: string, user: User) => void }) {
   async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const result = await fetch(`${API}/auth/login`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ email, password, device_name: "QueueCare web" }) }); const body = await result.json(); if (!result.ok) throw new Error(body?.error?.details?.email?.[0] ?? body?.error?.message); onLogin(body.data.token, body.data.user); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not sign in."); } finally { setBusy(false); } }
   return <main className="grid min-h-screen place-items-center bg-[#F4F8FF] p-5"><div className="grid w-full max-w-5xl overflow-hidden rounded-[32px] border border-white bg-white shadow-[0_30px_90px_rgba(39,82,140,.18)] lg:grid-cols-[1.08fr_.92fr]">
     <section className="relative hidden min-h-[620px] overflow-hidden bg-[#0B5CFF] p-12 text-white lg:block"><div className="absolute -right-28 -top-20 size-80 rounded-full bg-[#72DDB8]/40"/><div className="absolute -bottom-24 -left-20 size-72 rounded-full bg-[#A882F3]/35"/><Brand /><div className="relative mt-32"><span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold tracking-widest">MODULAR BENTO</span><h1 className="mt-6 max-w-md text-5xl font-black leading-[1.05] tracking-tight">A smoother day starts with every queue.</h1><p className="mt-5 max-w-md text-lg leading-8 text-blue-100">Configure branches, services, counters, schedules, and staff from one calm workspace.</p></div><div className="absolute bottom-10 left-12 right-12 grid grid-cols-3 gap-3">{["12 min", "2 counters", "Open"].map((item) => <div key={item} className="rounded-2xl bg-white/12 p-3 text-sm font-bold backdrop-blur">{item}</div>)}</div></section>
-    <section className="p-7 sm:p-12 lg:p-14"><div className="lg:hidden"><Brand /></div><p className="mt-12 text-sm font-bold uppercase tracking-[.18em] text-[#0B5CFF] lg:mt-8">Staff & admin portal</p><h2 className="mt-3 text-3xl font-black tracking-tight">Welcome back</h2><p className="mt-2 text-[#526584]">Sign in to run counters or manage your branch.</p><form onSubmit={submit} className="mt-9 space-y-5"><label className="block text-sm font-bold">Email<input className="field mt-2" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label className="block text-sm font-bold">Password<input className="field mt-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={busy} className="primary-button w-full">{busy ? "Signing in…" : "Sign in"}</button></form><div className="mt-8 grid gap-2 text-sm"><button type="button" onClick={() => setEmail("manager@queuecare.test")} className="rounded-2xl bg-[#F4F8FF] p-4 text-left text-[#526584]"><b className="text-[#0B1736]">Demo manager</b><br/>manager@queuecare.test</button><button type="button" onClick={() => setEmail("staff@queuecare.test")} className="rounded-2xl bg-[#DDF8EF] p-4 text-left text-[#386655]"><b className="text-[#0B1736]">Demo counter staff</b><br/>staff@queuecare.test</button><p className="px-2 text-xs text-[#7D8EAA]">Password for both: password</p></div></section>
+    <section className="p-7 sm:p-12 lg:p-14"><div className="lg:hidden"><Brand /></div><p className="mt-12 text-sm font-bold uppercase tracking-[.18em] text-[#0B5CFF] lg:mt-8">Staff & admin portal</p><h2 className="mt-3 text-3xl font-black tracking-tight">Welcome back</h2><p className="mt-2 text-[#526584]">Sign in to run counters or manage your branch.</p><form onSubmit={submit} className="mt-9 space-y-5"><label className="block text-sm font-bold">Email<input className="field mt-2" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label className="block text-sm font-bold">Password<input className="field mt-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={busy} className="primary-button w-full">{busy ? "Signing in…" : "Sign in"}</button></form><div className="mt-8 grid gap-2 text-sm"><button type="button" onClick={() => setEmail("admin@queuecare.test")} className="rounded-2xl bg-[#EFE8FF] p-4 text-left text-[#5B42A8]"><b className="text-[#0B1736]">Demo super admin</b><br/>admin@queuecare.test</button><button type="button" onClick={() => setEmail("manager@queuecare.test")} className="rounded-2xl bg-[#F4F8FF] p-4 text-left text-[#526584]"><b className="text-[#0B1736]">Demo manager</b><br/>manager@queuecare.test</button><button type="button" onClick={() => setEmail("staff@queuecare.test")} className="rounded-2xl bg-[#DDF8EF] p-4 text-left text-[#386655]"><b className="text-[#0B1736]">Demo counter staff</b><br/>staff@queuecare.test</button><p className="px-2 text-xs text-[#7D8EAA]">Password for all: password</p></div></section>
   </div></main>;
 }
 
@@ -186,6 +190,60 @@ function StaffWorkspace({ token, user, onSignOut }: { token: string; user: User;
       </div>}
     </div>
   </main>;
+}
+
+function PlatformWorkspace({ token, currentUserId }: { token: string; currentUserId: number }) {
+  const [overview, setOverview] = useState<AdminOverview>();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [search, setSearch] = useState("");
+  const [role, setRole] = useState("");
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setBusy(true); setError("");
+    const query = new URLSearchParams();
+    if (search) query.set("search", search); if (role) query.set("role", role); if (status) query.set("status", status);
+    try {
+      const [overviewResponse, userResponse] = await Promise.all([
+        apiRequest<{ data: AdminOverview }>("/admin/overview", token),
+        apiRequest<{ data: AdminUser[] }>(`/admin/users?${query}`, token),
+      ]);
+      setOverview(overviewResponse.data); setUsers(userResponse.data);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load platform administration."); }
+    finally { setBusy(false); }
+  }, [role, search, status, token]);
+  useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); return () => window.clearTimeout(start); }, [refresh]);
+
+  async function createAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError("");
+    const form = event.currentTarget; const values = Object.fromEntries(new FormData(form));
+    try { await apiRequest("/admin/users", token, { method: "POST", body: JSON.stringify(values) }); form.reset(); setMessage("Account created and audit event recorded."); await refresh(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not create the account."); }
+    finally { setBusy(false); }
+  }
+
+  async function updateAccount(account: AdminUser, change: { role?: string; suspended?: boolean }) {
+    const reason = window.prompt("Reason for this access change (required)");
+    if (!reason) return;
+    setBusy(true); setError("");
+    try { await apiRequest(`/admin/users/${account.id}`, token, { method: "PATCH", body: JSON.stringify({ ...change, reason }) }); setMessage("Access updated and audit event recorded."); await refresh(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update access."); }
+    finally { setBusy(false); }
+  }
+
+  if (!overview) return <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1,2,3,4].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div>;
+  return <div className="mt-7 space-y-6">
+    <section className="rounded-[32px] bg-[#0B1736] p-6 text-white sm:p-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#A882F3]">SUPER ADMIN</p><h2 className="mt-3 text-3xl font-black">Platform control center</h2><p className="mt-2 text-sm text-[#C7D7F2]">Manage access across {overview.active_branches} active branches with a permanent audit trail.</p></div><span className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold">{overview.served_today} served today</span></div></section>
+    {error && <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+    {message && <div role="status" className="rounded-2xl bg-[#DDF8EF] p-4 text-sm font-bold text-[#0D7C59]">{message}</div>}
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Branches" value={overview.branches} detail={`${overview.active_branches} active`} color="blue"/><Metric label="Accounts" value={overview.users} detail={`${overview.suspended_users} suspended`} color="violet"/><Metric label="Counter staff" value={overview.users_by_role.counter_staff} detail={`${overview.active_counters} active counters`} color="mint"/><Metric label="Customers" value={overview.users_by_role.customers} detail={`${overview.users_by_role.branch_managers} managers`} color="amber"/></section>
+    <div className="grid items-start gap-6 xl:grid-cols-[.72fr_1.28fr]"><Panel title="Create account" subtitle="Issue a verified platform account with an initial role."><form onSubmit={createAccount} className="space-y-4"><label className="form-label">Full name<input name="name" className="field mt-2" required/></label><label className="form-label">Email<input name="email" type="email" className="field mt-2" required/></label><label className="form-label">Initial role<select name="role" className="field mt-2" defaultValue="customer"><option value="customer">Customer</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Branch manager</option><option value="super_admin">Super admin</option></select></label><label className="form-label">Temporary password<input name="password" type="password" minLength={8} className="field mt-2" required/></label><button disabled={busy} className="primary-button w-full">Create account</button></form></Panel>
+      <Panel title="Account directory" subtitle="Search, filter, change roles, and suspend access."><form onSubmit={(event) => { event.preventDefault(); void refresh(); }} className="grid gap-3 sm:grid-cols-[1fr_160px_140px_auto]"><input aria-label="Search accounts" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" className="field"/><select aria-label="Filter by role" value={role} onChange={(event) => setRole(event.target.value)} className="field"><option value="">All roles</option><option value="customer">Customers</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Managers</option><option value="super_admin">Super admins</option></select><select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)} className="field"><option value="">All status</option><option value="active">Active</option><option value="suspended">Suspended</option></select><button disabled={busy} className="secondary-button">Apply</button></form><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-[#7D8EAA]"><tr><th scope="col" className="pb-3">Account</th><th scope="col" className="pb-3">Role</th><th scope="col" className="pb-3">Assignment</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3 text-right">Action</th></tr></thead><tbody>{users.map((account) => <tr key={account.id} className="border-t border-[#E4ECF7]"><th scope="row" className="py-4"><span className="block font-black">{account.name}</span><span className="text-xs font-normal text-[#7D8EAA]">{account.email}</span></th><td><select aria-label={`Role for ${account.name}`} disabled={busy || account.id === currentUserId} value={account.role} onChange={(event) => void updateAccount(account, { role: event.target.value })} className="h-9 rounded-xl border border-[#DDE7F5] bg-white px-2 text-xs font-bold"><option value="customer">Customer</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Manager</option><option value="super_admin">Super admin</option></select></td><td className="text-xs text-[#526584]">{account.assignments?.map((item) => item.counter ? `${item.branch} · ${item.counter}` : item.branch).filter(Boolean).join(", ") || "Platform-wide"}</td><td><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.suspended_at ? "bg-[#FFF0F3] text-[#B42345]" : "bg-[#DDF8EF] text-[#0D7C59]"}`}>{account.suspended_at ? "Suspended" : "Active"}</span></td><td className="text-right"><button disabled={busy || account.id === currentUserId} onClick={() => void updateAccount(account, { suspended: !account.suspended_at })} className="rounded-xl border border-[#DDE7F5] px-3 py-2 text-xs font-bold disabled:opacity-30">{account.suspended_at ? "Restore" : "Suspend"}</button></td></tr>)}</tbody></table>{!users.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No accounts match these filters.</p>}</div></Panel></div>
+    <Panel title="Administration activity" subtitle="Who changed access, what changed, and when."><div className="grid gap-3 lg:grid-cols-2">{overview.recent_activity.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4ECF7] p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full bg-[#EFE8FF] px-2.5 py-1 text-[11px] font-black text-[#7754D8]">{item.action}</span><time className="text-xs text-[#7D8EAA]">{new Date(item.occurred_at).toLocaleString()}</time></div><p className="mt-3 text-sm font-bold">{item.description}</p><p className="mt-1 text-xs text-[#7D8EAA]">{item.actor?.name ?? "System"}{item.ip_address ? ` · ${item.ip_address}` : ""}</p></article>)}{!overview.recent_activity.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No administration changes recorded yet.</p>}</div></Panel>
+  </div>;
 }
 
 function DashboardWorkspace({ branch, token }: { branch: Branch; token: string }) {

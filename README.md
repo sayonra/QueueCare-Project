@@ -40,7 +40,7 @@ Do not commit `.env` files. If credentials change after the first MySQL start, u
 
 ## Current stage
 
-Sprint 5 is complete. Managers can inspect date-ranged wait and service metrics, compare branches and staff, and download real CSV/PDF reports. The web portal adds an explicit dark theme, English/Khmer controls, visible keyboard focus, and accessible report tables; mobile follows the device theme and provides bilingual navigation and core customer screens. Historical seed data supports a useful first-run demonstration, while CI validates the Laravel suite, formatting, web production build, and both TypeScript clients. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), [sprint plan](docs/SPRINTS.md), [release runbook](docs/RELEASE.md), and [demo script](docs/DEMO_SCRIPT.md).
+Sprint 6 is complete. Super Admins now have a platform control center for cross-branch health, searchable accounts, account creation, role changes, suspension/restoration, and a permanent administration activity feed. Suspension revokes active tokens, self-lockout is blocked, and each access change stores its reason and before/after values. Sprint 5 reporting, CSV/PDF exports, bilingual controls, dark themes, and accessibility polish remain available. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), [sprint plan](docs/SPRINTS.md), [release runbook](docs/RELEASE.md), and [demo script](docs/DEMO_SCRIPT.md).
 
 ### Demonstration accounts
 
