@@ -19,7 +19,12 @@ type Report = {
 };
 type AdminUser = User & { created_at: string; last_active_at: string | null; assignments: { branch: string | null; counter: string | null }[] };
 type Activity = { id: number; action: string; description: string; actor: { id: number; name: string } | null; subject: { type: string; id: number | null }; metadata: Record<string, unknown> | null; ip_address: string | null; occurred_at: string };
-type AdminOverview = { branches: number; active_branches: number; active_counters: number; users: number; suspended_users: number; users_by_role: { customers: number; counter_staff: number; branch_managers: number; super_admins: number }; served_today: number; recent_activity: Activity[]; refreshed_at: string };
+type OperationalAlert = { id: string; severity: "critical" | "warning"; title: string; detail: string; branch_id: number | null };
+type AdminOverview = { branches: number; active_branches: number; active_counters: number; users: number; suspended_users: number; users_by_role: { customers: number; counter_staff: number; branch_managers: number; super_admins: number }; served_today: number; alerts: OperationalAlert[]; recent_activity: Activity[]; refreshed_at: string };
+type AdminBranch = { id: number; name: string; slug: string; timezone: string; address: string; phone: string | null; is_active: boolean; owner: { id: number; name: string; email: string } | null; active_tickets: number; active_staff: number; active_counters: number };
+type AdminTicket = { id: number; number: string; status: string; priority: string; branch: { id: number; name: string }; service: string; customer: { name: string; email: string }; appointment_id: number | null; created_at: string; can_cancel: boolean };
+type AdminAppointment = { id: number; status: string; scheduled_for: string; branch: { id: number; name: string }; service: string; customer: { name: string; email: string }; ticket_number: string | null; can_cancel: boolean };
+type AdminOperations = { tickets: AdminTicket[]; appointments: AdminAppointment[] };
 type Hour = { id: number; day_of_week: number; opens_at: string | null; closes_at: string | null; is_closed: boolean };
 type Assignment = { id: number; user: { name: string; email: string; role: string }; counter: Counter | null };
 type Branch = {
@@ -90,7 +95,7 @@ export default function Home() {
             <button onClick={() => setView("reports")} aria-current={view === "reports" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "reports" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>▦</b> {t.reports}</button>
             {user.role === "super_admin" && <button onClick={() => setView("platform")} aria-current={view === "platform" ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 ${view === "platform" ? "bg-[#DCEBFF] text-[#0B5CFF]" : "text-[#526584]"}`}><b>◎</b> {t.platform}</button>}
           </nav>
-          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 6</p><p className="mt-2 text-sm font-bold">Platform governance</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Accounts · access · audit</p></div>
+          <div className="mt-auto rounded-2xl bg-[#0B1736] p-4 text-white"><p className="text-xs font-semibold text-[#72DDB8]">SPRINT 6</p><p className="mt-2 text-sm font-bold">Platform governance</p><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className="h-full w-full rounded-full bg-[#72DDB8]" /></div><p className="mt-2 text-xs text-white/60">Branches · operations · alerts</p></div>
         </aside>
 
         <section className="min-w-0 px-4 py-5 sm:px-7 lg:px-10 lg:py-7">
@@ -195,26 +200,37 @@ function StaffWorkspace({ token, user, onSignOut }: { token: string; user: User;
 function PlatformWorkspace({ token, currentUserId }: { token: string; currentUserId: number }) {
   const [overview, setOverview] = useState<AdminOverview>();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [owners, setOwners] = useState<AdminUser[]>([]);
+  const [platformBranches, setPlatformBranches] = useState<AdminBranch[]>([]);
+  const [operations, setOperations] = useState<AdminOperations>({ tickets: [], appointments: [] });
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
+  const [operationSearch, setOperationSearch] = useState("");
+  const [operationBranchId, setOperationBranchId] = useState("");
+  const [operationStatus, setOperationStatus] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setBusy(true); setError("");
-    const query = new URLSearchParams();
-    if (search) query.set("search", search); if (role) query.set("role", role); if (status) query.set("status", status);
+    const userQuery = new URLSearchParams();
+    if (search) userQuery.set("search", search); if (role) userQuery.set("role", role); if (status) userQuery.set("status", status);
+    const operationQuery = new URLSearchParams();
+    if (operationSearch) operationQuery.set("search", operationSearch); if (operationBranchId) operationQuery.set("branch_id", operationBranchId); if (operationStatus) operationQuery.set("status", operationStatus);
     try {
-      const [overviewResponse, userResponse] = await Promise.all([
+      const [overviewResponse, userResponse, ownerResponse, branchResponse, operationResponse] = await Promise.all([
         apiRequest<{ data: AdminOverview }>("/admin/overview", token),
-        apiRequest<{ data: AdminUser[] }>(`/admin/users?${query}`, token),
+        apiRequest<{ data: AdminUser[] }>(`/admin/users?${userQuery}`, token),
+        apiRequest<{ data: AdminUser[] }>("/admin/users?role=branch_manager&status=active", token),
+        apiRequest<{ data: AdminBranch[] }>("/admin/branches", token),
+        apiRequest<{ data: AdminOperations }>(`/admin/operations?${operationQuery}`, token),
       ]);
-      setOverview(overviewResponse.data); setUsers(userResponse.data);
+      setOverview(overviewResponse.data); setUsers(userResponse.data); setOwners(ownerResponse.data); setPlatformBranches(branchResponse.data); setOperations(operationResponse.data);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load platform administration."); }
     finally { setBusy(false); }
-  }, [role, search, status, token]);
+  }, [operationBranchId, operationSearch, operationStatus, role, search, status, token]);
   useEffect(() => { const start = window.setTimeout(() => void refresh(), 0); return () => window.clearTimeout(start); }, [refresh]);
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
@@ -222,6 +238,14 @@ function PlatformWorkspace({ token, currentUserId }: { token: string; currentUse
     const form = event.currentTarget; const values = Object.fromEntries(new FormData(form));
     try { await apiRequest("/admin/users", token, { method: "POST", body: JSON.stringify(values) }); form.reset(); setMessage("Account created and audit event recorded."); await refresh(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not create the account."); }
+    finally { setBusy(false); }
+  }
+
+  async function createBranch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError("");
+    const form = event.currentTarget; const values = Object.fromEntries(new FormData(form));
+    try { await apiRequest("/admin/branches", token, { method: "POST", body: JSON.stringify({ ...values, owner_user_id: Number(values.owner_user_id) }) }); form.reset(); setMessage("Branch created, assigned, and audited."); await refresh(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not create the branch."); }
     finally { setBusy(false); }
   }
 
@@ -234,15 +258,39 @@ function PlatformWorkspace({ token, currentUserId }: { token: string; currentUse
     finally { setBusy(false); }
   }
 
+  async function updateBranch(branch: AdminBranch, change: { owner_user_id?: number; is_active?: boolean }) {
+    const reason = window.prompt("Reason for this branch change (required)");
+    if (!reason) return;
+    setBusy(true); setError("");
+    try { await apiRequest(`/admin/branches/${branch.id}`, token, { method: "PATCH", body: JSON.stringify({ ...change, reason }) }); setMessage("Branch ownership or lifecycle updated."); await refresh(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update the branch."); }
+    finally { setBusy(false); }
+  }
+
+  async function cancelOperation(kind: "tickets" | "appointments", id: number, label: string) {
+    const reason = window.prompt(`Reason for cancelling ${label} (required)`);
+    if (!reason) return;
+    setBusy(true); setError("");
+    try { await apiRequest(`/admin/${kind}/${id}/cancel`, token, { method: "POST", body: JSON.stringify({ reason }) }); setMessage(`${label} cancelled, customer notified, and audit event recorded.`); await refresh(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : `Could not cancel ${label}.`); }
+    finally { setBusy(false); }
+  }
+
   if (!overview) return <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1,2,3,4].map((item) => <div key={item} className="h-40 animate-pulse rounded-3xl bg-white" />)}</div>;
   return <div className="mt-7 space-y-6">
-    <section className="rounded-[32px] bg-[#0B1736] p-6 text-white sm:p-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#A882F3]">SUPER ADMIN</p><h2 className="mt-3 text-3xl font-black">Platform control center</h2><p className="mt-2 text-sm text-[#C7D7F2]">Manage access across {overview.active_branches} active branches with a permanent audit trail.</p></div><span className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold">{overview.served_today} served today</span></div></section>
+    <section className="rounded-[32px] bg-[#0B1736] p-6 text-white sm:p-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#A882F3]">SUPER ADMIN</p><h2 className="mt-3 text-3xl font-black">Platform control center</h2><p className="mt-2 text-sm text-[#C7D7F2]">Manage ownership, operations, and access across {overview.active_branches} active branches with a permanent audit trail.</p></div><div className="flex gap-2"><span className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold">{overview.served_today} served today</span><span className={`rounded-2xl px-4 py-3 text-sm font-bold ${overview.alerts.length ? "bg-[#FFF0CE] text-[#8A5700]" : "bg-[#DDF8EF] text-[#0D7C59]"}`}>{overview.alerts.length} alerts</span></div></div></section>
     {error && <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {message && <div role="status" className="rounded-2xl bg-[#DDF8EF] p-4 text-sm font-bold text-[#0D7C59]">{message}</div>}
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Branches" value={overview.branches} detail={`${overview.active_branches} active`} color="blue"/><Metric label="Accounts" value={overview.users} detail={`${overview.suspended_users} suspended`} color="violet"/><Metric label="Counter staff" value={overview.users_by_role.counter_staff} detail={`${overview.active_counters} active counters`} color="mint"/><Metric label="Customers" value={overview.users_by_role.customers} detail={`${overview.users_by_role.branch_managers} managers`} color="amber"/></section>
+    <Panel title="Operational alerts" subtitle="Cross-branch conditions that need immediate review."><div className="grid gap-3 md:grid-cols-2">{overview.alerts.map((alert) => <article key={alert.id} className={`rounded-2xl border p-4 ${alert.severity === "critical" ? "border-red-200 bg-red-50" : "border-amber-200 bg-[#FFF8E8]"}`}><div className="flex items-center justify-between gap-3"><b className="text-sm">{alert.title}</b><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">{alert.severity}</span></div><p className="mt-2 text-sm text-[#526584]">{alert.detail}</p></article>)}{!overview.alerts.length && <p className="py-6 text-sm text-[#0D7C59]">All monitored branches are operating normally.</p>}</div></Panel>
+    <div className="grid items-start gap-6 xl:grid-cols-[.72fr_1.28fr]">
+      <Panel title="Create branch" subtitle="Create a location and assign its accountable manager."><form onSubmit={createBranch} className="space-y-4"><label className="form-label">Branch name<input name="name" className="field mt-2" required/></label><label className="form-label">Slug<input name="slug" pattern="[A-Za-z0-9_-]+" className="field mt-2" required/></label><label className="form-label">Address<input name="address" className="field mt-2" required/></label><div className="grid gap-3 sm:grid-cols-2"><label className="form-label">Timezone<input name="timezone" defaultValue="Asia/Phnom_Penh" className="field mt-2" required/></label><label className="form-label">Phone<input name="phone" className="field mt-2"/></label></div><label className="form-label">Owner<select name="owner_user_id" className="field mt-2" required defaultValue=""><option value="" disabled>Select manager</option>{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select></label><button disabled={busy || !owners.length} className="primary-button w-full">Create branch</button></form></Panel>
+      <Panel title="Branch ownership & lifecycle" subtitle="Closing is blocked until every active ticket is resolved."><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-[#7D8EAA]"><tr><th className="pb-3">Branch</th><th className="pb-3">Owner</th><th className="pb-3">Operations</th><th className="pb-3">Status</th><th className="pb-3 text-right">Action</th></tr></thead><tbody>{platformBranches.map((branch) => <tr key={branch.id} className="border-t border-[#E4ECF7]"><th scope="row" className="py-4"><span className="block font-black">{branch.name}</span><span className="text-xs font-normal text-[#7D8EAA]">{branch.address}</span></th><td><select aria-label={`Owner for ${branch.name}`} value={branch.owner?.id ?? ""} disabled={busy} onChange={(event) => void updateBranch(branch, { owner_user_id: Number(event.target.value) })} className="h-9 rounded-xl border border-[#DDE7F5] bg-white px-2 text-xs font-bold"><option value="" disabled>Unassigned</option>{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select></td><td className="text-xs text-[#526584]">{branch.active_tickets} tickets · {branch.active_counters} counters · {branch.active_staff} staff</td><td><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${branch.is_active ? "bg-[#DDF8EF] text-[#0D7C59]" : "bg-[#FFF0F3] text-[#B42345]"}`}>{branch.is_active ? "Active" : "Closed"}</span></td><td className="text-right"><button disabled={busy || (branch.is_active && branch.active_tickets > 0)} onClick={() => void updateBranch(branch, { is_active: !branch.is_active })} className="rounded-xl border border-[#DDE7F5] px-3 py-2 text-xs font-bold disabled:opacity-30">{branch.is_active ? "Close" : "Reopen"}</button></td></tr>)}</tbody></table></div></Panel>
+    </div>
     <div className="grid items-start gap-6 xl:grid-cols-[.72fr_1.28fr]"><Panel title="Create account" subtitle="Issue a verified platform account with an initial role."><form onSubmit={createAccount} className="space-y-4"><label className="form-label">Full name<input name="name" className="field mt-2" required/></label><label className="form-label">Email<input name="email" type="email" className="field mt-2" required/></label><label className="form-label">Initial role<select name="role" className="field mt-2" defaultValue="customer"><option value="customer">Customer</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Branch manager</option><option value="super_admin">Super admin</option></select></label><label className="form-label">Temporary password<input name="password" type="password" minLength={8} className="field mt-2" required/></label><button disabled={busy} className="primary-button w-full">Create account</button></form></Panel>
       <Panel title="Account directory" subtitle="Search, filter, change roles, and suspend access."><form onSubmit={(event) => { event.preventDefault(); void refresh(); }} className="grid gap-3 sm:grid-cols-[1fr_160px_140px_auto]"><input aria-label="Search accounts" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" className="field"/><select aria-label="Filter by role" value={role} onChange={(event) => setRole(event.target.value)} className="field"><option value="">All roles</option><option value="customer">Customers</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Managers</option><option value="super_admin">Super admins</option></select><select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)} className="field"><option value="">All status</option><option value="active">Active</option><option value="suspended">Suspended</option></select><button disabled={busy} className="secondary-button">Apply</button></form><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-[#7D8EAA]"><tr><th scope="col" className="pb-3">Account</th><th scope="col" className="pb-3">Role</th><th scope="col" className="pb-3">Assignment</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3 text-right">Action</th></tr></thead><tbody>{users.map((account) => <tr key={account.id} className="border-t border-[#E4ECF7]"><th scope="row" className="py-4"><span className="block font-black">{account.name}</span><span className="text-xs font-normal text-[#7D8EAA]">{account.email}</span></th><td><select aria-label={`Role for ${account.name}`} disabled={busy || account.id === currentUserId} value={account.role} onChange={(event) => void updateAccount(account, { role: event.target.value })} className="h-9 rounded-xl border border-[#DDE7F5] bg-white px-2 text-xs font-bold"><option value="customer">Customer</option><option value="counter_staff">Counter staff</option><option value="branch_manager">Manager</option><option value="super_admin">Super admin</option></select></td><td className="text-xs text-[#526584]">{account.assignments?.map((item) => item.counter ? `${item.branch} · ${item.counter}` : item.branch).filter(Boolean).join(", ") || "Platform-wide"}</td><td><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.suspended_at ? "bg-[#FFF0F3] text-[#B42345]" : "bg-[#DDF8EF] text-[#0D7C59]"}`}>{account.suspended_at ? "Suspended" : "Active"}</span></td><td className="text-right"><button disabled={busy || account.id === currentUserId} onClick={() => void updateAccount(account, { suspended: !account.suspended_at })} className="rounded-xl border border-[#DDE7F5] px-3 py-2 text-xs font-bold disabled:opacity-30">{account.suspended_at ? "Restore" : "Suspend"}</button></td></tr>)}</tbody></table>{!users.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No accounts match these filters.</p>}</div></Panel></div>
-    <Panel title="Administration activity" subtitle="Who changed access, what changed, and when."><div className="grid gap-3 lg:grid-cols-2">{overview.recent_activity.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4ECF7] p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full bg-[#EFE8FF] px-2.5 py-1 text-[11px] font-black text-[#7754D8]">{item.action}</span><time className="text-xs text-[#7D8EAA]">{new Date(item.occurred_at).toLocaleString()}</time></div><p className="mt-3 text-sm font-bold">{item.description}</p><p className="mt-1 text-xs text-[#7D8EAA]">{item.actor?.name ?? "System"}{item.ip_address ? ` · ${item.ip_address}` : ""}</p></article>)}{!overview.recent_activity.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No administration changes recorded yet.</p>}</div></Panel>
+    <Panel title="Global tickets & appointments" subtitle="Search every branch and cancel eligible records with a required reason."><div className="grid gap-3 md:grid-cols-[1fr_220px_180px]"><input aria-label="Search global operations" value={operationSearch} onChange={(event) => setOperationSearch(event.target.value)} placeholder="Ticket, customer, or email" className="field"/><select aria-label="Filter operations by branch" value={operationBranchId} onChange={(event) => setOperationBranchId(event.target.value)} className="field"><option value="">All branches</option>{platformBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><select aria-label="Filter ticket status" value={operationStatus} onChange={(event) => setOperationStatus(event.target.value)} className="field"><option value="">All ticket status</option>{["reserved","waiting","called","serving","skipped","completed","cancelled"].map((item) => <option key={item} value={item}>{item}</option>)}</select></div><div className="mt-6 grid gap-6 xl:grid-cols-2"><div><h3 className="text-sm font-black">Tickets</h3><div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto">{operations.tickets.map((ticket) => <article key={ticket.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#F4F8FF] p-3"><div className="min-w-0 flex-1"><b>{ticket.number}</b><p className="truncate text-xs text-[#7D8EAA]">{ticket.customer.name} · {ticket.branch.name} · {ticket.service}</p></div><span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold capitalize">{ticket.status}</span>{ticket.can_cancel && <button disabled={busy} onClick={() => void cancelOperation("tickets", ticket.id, ticket.number)} className="rounded-xl bg-[#FFF0F3] px-3 py-2 text-xs font-black text-[#B42345]">Cancel</button>}</article>)}{!operations.tickets.length && <p className="py-6 text-sm text-[#7D8EAA]">No tickets match these filters.</p>}</div></div><div><h3 className="text-sm font-black">Appointments</h3><div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto">{operations.appointments.map((appointment) => <article key={appointment.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#F4F8FF] p-3"><div className="min-w-0 flex-1"><b>{appointment.ticket_number ?? `Appointment ${appointment.id}`}</b><p className="truncate text-xs text-[#7D8EAA]">{appointment.customer.name} · {appointment.branch.name} · {new Date(appointment.scheduled_for).toLocaleString()}</p></div><span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold capitalize">{appointment.status}</span>{appointment.can_cancel && <button disabled={busy} onClick={() => void cancelOperation("appointments", appointment.id, appointment.ticket_number ?? `appointment ${appointment.id}`)} className="rounded-xl bg-[#FFF0F3] px-3 py-2 text-xs font-black text-[#B42345]">Cancel</button>}</article>)}{!operations.appointments.length && <p className="py-6 text-sm text-[#7D8EAA]">No appointments match these filters.</p>}</div></div></div></Panel>
+    <Panel title="Administration activity" subtitle="Who changed access or operations, what changed, and when."><div className="grid gap-3 lg:grid-cols-2">{overview.recent_activity.map((item) => <article key={item.id} className="rounded-2xl border border-[#E4ECF7] p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full bg-[#EFE8FF] px-2.5 py-1 text-[11px] font-black text-[#7754D8]">{item.action}</span><time className="text-xs text-[#7D8EAA]">{new Date(item.occurred_at).toLocaleString()}</time></div><p className="mt-3 text-sm font-bold">{item.description}</p><p className="mt-1 text-xs text-[#7D8EAA]">{item.actor?.name ?? "System"}{item.ip_address ? ` · ${item.ip_address}` : ""}</p></article>)}{!overview.recent_activity.length && <p className="py-8 text-center text-sm text-[#7D8EAA]">No administration changes recorded yet.</p>}</div></Panel>
   </div>;
 }
 

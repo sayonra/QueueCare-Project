@@ -24,6 +24,11 @@ class User extends Authenticatable
         return $this->hasMany(StaffAssignment::class);
     }
 
+    public function ownedBranches(): HasMany
+    {
+        return $this->hasMany(Branch::class, 'owner_user_id');
+    }
+
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
@@ -51,10 +56,10 @@ class User extends Authenticatable
 
     public function managesBranch(Branch $branch): bool
     {
-        return $this->isSuperAdmin() || ($this->role === 'branch_manager' && $this->staffAssignments()
-            ->where('branch_id', $branch->id)
-            ->where('is_active', true)
-            ->exists());
+        return $this->isSuperAdmin() || ($this->role === 'branch_manager' && (
+            $branch->owner_user_id === $this->id
+            || $this->staffAssignments()->where('branch_id', $branch->id)->where('is_active', true)->exists()
+        ));
     }
 
     public function canOperateCounter(Counter $counter): bool

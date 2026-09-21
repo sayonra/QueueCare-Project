@@ -22,6 +22,11 @@ class BranchResource extends JsonResource
             'address' => $this->address,
             'phone' => $this->phone,
             'is_active' => $this->is_active,
+            'owner' => $this->owner ? [
+                'id' => $this->owner->id,
+                'name' => $this->owner->name,
+                'email' => $this->owner->email,
+            ] : null,
             'services' => ServiceResource::collection($this->whenLoaded('services')),
             'counters' => CounterResource::collection($this->whenLoaded('counters')),
             'operating_hours' => OperatingHourResource::collection($this->whenLoaded('operatingHours')),

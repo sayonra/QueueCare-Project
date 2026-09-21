@@ -85,6 +85,7 @@ class DemoDataSeeder extends Seeder
 
         $manager = User::query()->where('email', 'manager@queuecare.test')->firstOrFail();
         $staff = User::query()->where('email', 'staff@queuecare.test')->firstOrFail();
+        $branch->update(['owner_user_id' => $manager->id]);
         StaffAssignment::query()->updateOrCreate(
             ['user_id' => $manager->id, 'branch_id' => $branch->id, 'counter_id' => null],
             ['is_active' => true],
@@ -101,6 +102,7 @@ class DemoDataSeeder extends Seeder
                 'timezone' => 'Asia/Phnom_Penh',
                 'address' => 'Preah Sisowath Quay, Phnom Penh',
                 'phone' => '+855 23 555 0202',
+                'owner_user_id' => $manager->id,
                 'is_active' => true,
             ],
         );

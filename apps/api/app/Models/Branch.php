@@ -6,13 +6,19 @@ use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'timezone', 'address', 'phone', 'is_active'])]
+#[Fillable(['owner_user_id', 'name', 'slug', 'timezone', 'address', 'phone', 'is_active'])]
 class Branch extends Model
 {
     /** @use HasFactory<BranchFactory> */
     use HasFactory;
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_user_id');
+    }
 
     public function services(): HasMany
     {

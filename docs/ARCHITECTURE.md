@@ -20,7 +20,7 @@ The Laravel API is the source of truth for ordering, ticket status, estimates, r
 
 `users`, `roles`, `branches`, `services`, `counters`, `staff_assignments`, `queues`, `tickets`, `ticket_status_history`, `appointments`, `notifications`, `branch_operating_hours`, `holidays`, `reviews`, and `activity_logs`.
 
-Important relationships: a branch has services/counters/queues and an IANA timezone; a ticket belongs to a queue, service, branch, and customer; staff assignments link users to branch/counter; each ticket transition creates `ticket_status_history`. Store status, priority, timestamps, counter, and actor IDs explicitly. Keep public ticket numbers scoped to a branch/service queue/local date while internal IDs remain globally unique. “Join now” enters `Waiting`; scheduled tickets enter `Reserved` until check-in. All stored timestamps use UTC.
+Important relationships: a branch has an accountable owner, services/counters/queues, and an IANA timezone; a ticket belongs to a queue, service, branch, and customer; staff assignments link users to branch/counter; each ticket transition creates `ticket_status_history`. Store status, priority, timestamps, counter, and actor IDs explicitly. Keep public ticket numbers scoped to a branch/service queue/local date while internal IDs remain globally unique. “Join now” enters `Waiting`; scheduled tickets enter `Reserved` until check-in. All stored timestamps use UTC.
 
 ## API foundation and Sprint 1 surface
 
@@ -82,6 +82,21 @@ Scheduled tickets are issued immediately in `Reserved` with `scheduled` priority
 `ticket_status_history` is also the append-only audit log for `check_in`, `transfer`, `priority`, and `late_arrival` events. Transfer records source and target counter IDs. Priority changes record old and new tiers. Both require a non-empty reason and actor. The target counter receives exclusive call eligibility through `preferred_counter_id` until it claims the ticket.
 
 Notifications use a database outbox. Customer-impacting events enqueue a row inside the same database transaction as the queue change. `php artisan notifications:retry` sends due rows through Expo Push Service, applies exponential backoff after transient failures, and stops after five attempts. A notification with no registered device is retained as delivered in the in-app record. Remote push requires an Expo development/production build and an EAS project ID; Expo Go on Android does not support remote notifications for this SDK.
+
+## Super Admin governance API
+
+| Method/path | Purpose | Role |
+| --- | --- | --- |
+| `GET /api/v1/admin/overview` | Platform totals, recent audit events, and operational alerts | Super admin |
+| `GET/POST /api/v1/admin/branches` | List or create owned branches | Super admin |
+| `PATCH /api/v1/admin/branches/{branch}` | Change the accountable owner or close/reopen a branch | Super admin |
+| `GET /api/v1/admin/operations` | Search tickets and appointments across branches | Super admin |
+| `POST /api/v1/admin/tickets/{ticket}/cancel` | Safely cancel an eligible ticket with a reason | Super admin |
+| `POST /api/v1/admin/appointments/{appointment}/cancel` | Cancel a scheduled appointment and its ticket | Super admin |
+| `GET/POST/PATCH /api/v1/admin/users...` | Search, create, suspend, restore, and change account roles | Super admin |
+| `GET /api/v1/admin/activity-logs` | Paginated immutable administrative history | Super admin |
+
+Ownership accepts active branch managers or Super Admins. Closing a branch is rejected while it has an active ticket. Administrative cancellations update the ticket and appointment in one transaction, append ticket history, enqueue a customer notification, and write an activity record. The overview derives alerts for waiting queues without available counters, called tickets past the response window, and scheduled appointments past check-in.
 
 ## Authentication and privacy
 

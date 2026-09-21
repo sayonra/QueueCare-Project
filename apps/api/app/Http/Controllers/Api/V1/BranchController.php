@@ -24,11 +24,11 @@ class BranchController extends Controller
         Gate::authorize('viewAny', Branch::class);
 
         $branches = Branch::query()
-            ->when(! $request->user()->isSuperAdmin(), fn ($query) => $query->whereHas(
-                'staffAssignments',
-                fn ($assignments) => $assignments->where('user_id', $request->user()->id)->where('is_active', true),
-            ))
-            ->with(['services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter'])
+            ->when(! $request->user()->isSuperAdmin(), fn ($query) => $query->where(fn ($branches) => $branches
+                ->where('owner_user_id', $request->user()->id)
+                ->orWhereHas('staffAssignments', fn ($assignments) => $assignments
+                    ->where('user_id', $request->user()->id)->where('is_active', true))))
+            ->with(['owner', 'services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter'])
             ->orderBy('name')
             ->get();
 
@@ -52,7 +52,7 @@ class BranchController extends Controller
     {
         Gate::authorize('view', $branch);
 
-        return new BranchResource($branch->load(['services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter']));
+        return new BranchResource($branch->load(['owner', 'services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter']));
     }
 
     /**
@@ -63,7 +63,7 @@ class BranchController extends Controller
         Gate::authorize('update', $branch);
         $branch->update($request->validated());
 
-        return new BranchResource($branch->refresh()->load(['services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter']));
+        return new BranchResource($branch->refresh()->load(['owner', 'services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter']));
     }
 
     /**

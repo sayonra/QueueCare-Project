@@ -79,5 +79,11 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/admin/users', [AdminPlatformController::class, 'store']);
         Route::patch('/admin/users/{user}', [AdminPlatformController::class, 'update']);
         Route::get('/admin/activity-logs', [AdminPlatformController::class, 'activity']);
+        Route::get('/admin/branches', [AdminPlatformController::class, 'branches']);
+        Route::post('/admin/branches', [AdminPlatformController::class, 'storeBranch']);
+        Route::patch('/admin/branches/{branch}', [AdminPlatformController::class, 'updateBranch']);
+        Route::get('/admin/operations', [AdminPlatformController::class, 'operations']);
+        Route::post('/admin/tickets/{ticket}/cancel', [AdminPlatformController::class, 'cancelTicket']);
+        Route::post('/admin/appointments/{appointment}/cancel', [AdminPlatformController::class, 'cancelAppointment']);
     });
 });
