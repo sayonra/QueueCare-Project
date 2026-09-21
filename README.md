@@ -40,7 +40,7 @@ Do not commit `.env` files. If credentials change after the first MySQL start, u
 
 ## Current stage
 
-Sprint 6 is complete. Super Admins now have a platform control center for cross-branch health, searchable accounts, account creation, role changes, suspension/restoration, and a permanent administration activity feed. Suspension revokes active tokens, self-lockout is blocked, and each access change stores its reason and before/after values. Sprint 5 reporting, CSV/PDF exports, bilingual controls, dark themes, and accessibility polish remain available. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), [sprint plan](docs/SPRINTS.md), [release runbook](docs/RELEASE.md), and [demo script](docs/DEMO_SCRIPT.md).
+Sprint 6 is in progress. Its first increment delivers a Super Admin control center for cross-branch health, searchable accounts, account creation, role changes, suspension/restoration, and a permanent administration activity feed. Suspension revokes active tokens, self-lockout is blocked, and each access change stores its reason and before/after values. Branch ownership and lifecycle controls, global ticket and appointment administration, and operational alerts remain in the Sprint 6 backlog. Sprint 5 reporting, CSV/PDF exports, bilingual controls, dark themes, and accessibility polish remain available. See [the product scope](docs/PRODUCT.md), [Modular Bento design direction](docs/DESIGN.md), [architecture](docs/ARCHITECTURE.md), [sprint plan](docs/SPRINTS.md), [release runbook](docs/RELEASE.md), and [demo script](docs/DEMO_SCRIPT.md).
 
 ### Demonstration accounts
 
