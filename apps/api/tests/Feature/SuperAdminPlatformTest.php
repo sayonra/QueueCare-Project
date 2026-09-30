@@ -19,6 +19,10 @@ class SuperAdminPlatformTest extends TestCase
         $admin = User::factory()->superAdmin()->create();
         User::factory()->count(2)->create();
         User::factory()->counterStaff()->create(['name' => 'Dara Operator']);
+        $activeManager = User::factory()->branchManager()->create(['name' => 'Active Manager']);
+        $activeManagerToken = $activeManager->createToken('manager-dashboard')->accessToken;
+        $activeManagerToken->last_used_at = now();
+        $activeManagerToken->save();
         User::factory()->branchManager()->create(['suspended_at' => now()]);
         $branch = Branch::factory()->create();
         Counter::factory()->create(['branch_id' => $branch->id, 'is_active' => true, 'is_paused' => false]);
@@ -32,6 +36,11 @@ class SuperAdminPlatformTest extends TestCase
 
         $this->getJson('/api/v1/admin/users?role=counter_staff&search=Dara&status=active')->assertOk()
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Dara Operator');
+
+        $this->getJson('/api/v1/admin/users?role=branch_manager&status=active')->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Active Manager')
+            ->assertJsonPath('data.0.last_active_at', fn (mixed $value): bool => is_string($value));
     }
 
     public function test_super_admin_creates_accounts_with_an_audit_record(): void

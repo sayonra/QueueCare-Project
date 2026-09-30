@@ -85,6 +85,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'suspended_at' => 'immutable_datetime',
+            'tokens_max_last_used_at' => 'immutable_datetime',
             'password' => 'hashed',
         ];
     }

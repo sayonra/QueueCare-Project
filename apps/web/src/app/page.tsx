@@ -35,6 +35,7 @@ type Branch = {
 
 const rawApi = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 const API = rawApi.endsWith("/api/v1") ? rawApi : `${rawApi.replace(/\/$/, "")}/api/v1`;
+const AUTH_TOKEN_STORAGE_KEY = "queuecare.web.token";
 const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const copy = {
   en: { workspace: "Workspace", dashboard: "Live dashboard", setup: "Branch setup", reports: "Reports", platform: "Platform admin", operations: "Live operations", configuration: "Branch configuration", insights: "Reports & insights", governance: "Platform governance", signOut: "Sign out", manager: "Manager workspace" },
@@ -58,6 +59,7 @@ function Brand() {
 export default function Home() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<User>();
+  const [authReady, setAuthReady] = useState(false);
   const [view, setView] = useState<"dashboard" | "setup" | "reports" | "platform">("dashboard");
   const [language, setLanguage] = useState<"en" | "km">("en");
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -76,13 +78,54 @@ export default function Home() {
     finally { setLoading(false); }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const storedToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+    if (!storedToken) {
+      const start = window.setTimeout(() => { if (active) setAuthReady(true); }, 0);
+      return () => { active = false; window.clearTimeout(start); };
+    }
+
+    async function restoreSession() {
+      try {
+        const result = await apiRequest<{ data: User }>("/auth/me", storedToken!);
+        if (!active) return;
+        setToken(storedToken!);
+        setUser(result.data);
+        if (result.data.role !== "counter_staff") void loadBranches(storedToken!);
+      } catch {
+        window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    }
+
+    void restoreSession();
+    return () => { active = false; };
+  }, [loadBranches]);
+
+  const signOut = useCallback(() => {
+    const accessToken = token;
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    setToken(""); setUser(undefined); setBranches([]); setSelectedId(undefined);
+    if (accessToken) void apiRequest("/auth/logout", accessToken, { method: "POST" }).catch(() => undefined);
+  }, [token]);
+
+  const completeLogin = (accessToken: string, account: User) => {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, accessToken);
+    setToken(accessToken); setUser(account);
+    if (account.role !== "counter_staff") void loadBranches(accessToken);
+  };
+
   const branch = useMemo(() => branches.find((item) => item.id === selectedId) ?? branches[0], [branches, selectedId]);
   const refresh = () => token && loadBranches(token);
   const notify = (text: string) => { setMessage(text); setTimeout(() => setMessage(""), 2500); };
   const t = copy[language];
 
-  if (!token || !user) return <Login onLogin={(accessToken, account) => { setToken(accessToken); setUser(account); if (account.role !== "counter_staff") void loadBranches(accessToken); }} />;
-  if (user.role === "counter_staff") return <StaffWorkspace token={token} user={user} onSignOut={() => { setToken(""); setUser(undefined); }} />;
+  if (!authReady) return <main className="grid min-h-screen place-items-center bg-[#F4F8FF]"><div className="size-12 animate-pulse rounded-2xl bg-[#0B5CFF]" aria-label="Restoring session" /></main>;
+  if (!token || !user) return <Login onLogin={completeLogin} />;
+  if (user.role === "counter_staff") return <StaffWorkspace token={token} user={user} onSignOut={signOut} />;
 
   return (
     <main data-theme={theme} lang={language} className="app-shell min-h-screen bg-[#F4F8FF] text-[#0B1736]">
@@ -107,7 +150,7 @@ export default function Home() {
               {branches.length > 1 && <select aria-label="Select branch" value={branch?.id} onChange={(event) => setSelectedId(Number(event.target.value))} className="field w-auto">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>}
               <button onClick={() => setLanguage((value) => value === "en" ? "km" : "en")} className="secondary-button" aria-label="Switch language">{language === "en" ? "ខ្មែរ" : "EN"}</button>
               <button onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} className="secondary-button" aria-label={`Use ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? "◐" : "☀"}</button>
-              <button onClick={() => { setToken(""); setUser(undefined); setBranches([]); }} className="secondary-button">{t.signOut}</button>
+              <button onClick={signOut} className="secondary-button">{t.signOut}</button>
             </div>
           </header>
 
