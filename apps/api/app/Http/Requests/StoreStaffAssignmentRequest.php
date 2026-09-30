@@ -26,6 +26,7 @@ class StoreStaffAssignmentRequest extends FormRequest
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'counter_id' => ['nullable', 'integer', 'exists:counters,id'],
             'is_active' => ['sometimes', 'boolean'],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
         ];
     }
 }

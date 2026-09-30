@@ -17,16 +17,18 @@ class BranchConfigurationTest extends TestCase
     public function test_super_admin_can_create_a_branch(): void
     {
         Sanctum::actingAs(User::factory()->superAdmin()->create());
+        $owner = User::factory()->branchManager()->create();
 
-        $this->postJson('/api/v1/branches', [
+        $this->postJson('/api/v1/admin/branches', [
             'name' => 'North Clinic',
             'slug' => 'north-clinic',
             'timezone' => 'Asia/Phnom_Penh',
             'address' => 'Toul Kork, Phnom Penh',
             'phone' => '+855 23 100 200',
-        ])->assertCreated()->assertJsonPath('data.slug', 'north-clinic');
+            'owner_user_id' => $owner->id,
+        ])->assertCreated();
 
-        $this->assertDatabaseHas('branches', ['slug' => 'north-clinic']);
+        $this->assertDatabaseHas('branches', ['slug' => 'north-clinic', 'owner_user_id' => $owner->id]);
     }
 
     public function test_manager_can_configure_their_branch(): void

@@ -33,11 +33,13 @@ The API is versioned under `/api/v1`. Sprint 1 uses Sanctum bearer tokens for bo
 | `POST /api/v1/auth/login` | Issue a Sanctum token | Public |
 | `GET /api/v1/auth/me` | Current account | Authenticated |
 | `POST /api/v1/auth/logout` | Revoke current token | Authenticated |
-| `/api/v1/branches` | Branch CRUD | Super admin; assigned manager read/update |
+| `GET /api/v1/branches[/{branch}]` | List or view governed branches | Super admin; assigned manager |
+| `PATCH /api/v1/branches/{branch}` | Update branch profile fields; lifecycle is excluded | Assigned manager/admin |
 | `/api/v1/branches/{branch}/services` | Service CRUD | Assigned manager/admin |
 | `/api/v1/branches/{branch}/counters` | Counter and service assignment CRUD | Assigned manager/admin |
 | `/api/v1/branches/{branch}/operating-hours` | Weekly hours upsert/CRUD | Assigned manager/admin |
-| `/api/v1/branches/{branch}/staff-assignments` | Assign managers and counter staff | Assigned manager/admin |
+| `/api/v1/branches/{branch}/staff-assignments` | Assign or remove staff with a required audited reason | Assigned manager/admin |
+| `GET /api/v1/branches/{branch}/staff-candidates` | List active manager/staff accounts eligible for assignment | Assigned manager/admin |
 | `GET /api/v1/staff/counters` | Active assigned counters | Counter staff/admin |
 | `GET /api/v1/customer/branches` | Search active branches with service queue summaries | Authenticated |
 | `GET /api/v1/customer/branches/{branch}` | Branch details, services, waits, and availability | Authenticated |
@@ -97,6 +99,8 @@ Notifications use a database outbox. Customer-impacting events enqueue a row ins
 | `GET /api/v1/admin/activity-logs` | Paginated immutable administrative history | Super admin |
 
 Ownership accepts active branch managers or Super Admins. Closing a branch is rejected while it has an active ticket. Administrative cancellations update the ticket and appointment in one transaction, append ticket history, enqueue a customer notification, and write an activity record. The overview derives alerts for waiting queues without available counters, called tickets past the response window, and scheduled appointments past check-in.
+
+Branch creation and lifecycle changes only use the audited `/admin/branches` endpoints. The general branch endpoint updates profile fields and cannot create, delete, close, or reopen a branch. Staff assignment creation and removal require a reason and append `staff_assignment.*` activity records.
 
 ## Authentication and privacy
 

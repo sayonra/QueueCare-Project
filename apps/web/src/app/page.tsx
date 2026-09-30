@@ -26,7 +26,8 @@ type AdminTicket = { id: number; number: string; status: string; priority: strin
 type AdminAppointment = { id: number; status: string; scheduled_for: string; branch: { id: number; name: string }; service: string; customer: { name: string; email: string }; ticket_number: string | null; can_cancel: boolean };
 type AdminOperations = { tickets: AdminTicket[]; appointments: AdminAppointment[] };
 type Hour = { id: number; day_of_week: number; opens_at: string | null; closes_at: string | null; is_closed: boolean };
-type Assignment = { id: number; user: { name: string; email: string; role: string }; counter: Counter | null };
+type Assignment = { id: number; user: { id: number; name: string; email: string; role: string }; counter: Counter | null };
+type StaffCandidate = { id: number; name: string; email: string; role: string };
 type Branch = {
   id: number; name: string; slug: string; timezone: string; address: string; phone: string | null; is_active: boolean;
   services: Service[]; counters: Counter[]; operating_hours: Hour[]; staff_assignments: Assignment[];
@@ -129,6 +130,7 @@ export default function Home() {
                 <div className="space-y-6">
                   <CountersPanel branch={branch} token={token} onChanged={() => { refresh(); notify("Counters updated"); }} onError={setError} />
                   <HoursPanel branch={branch} token={token} onChanged={() => { refresh(); notify("Operating hours saved"); }} onError={setError} />
+                  <StaffPanel branch={branch} token={token} onChanged={() => { refresh(); notify("Staff assignments updated"); }} onError={setError} />
                 </div>
               </div>
             </div>
@@ -386,4 +388,33 @@ function HoursPanel({ branch, token, onChanged, onError }: { branch: Branch; tok
   const [day, setDay] = useState(1); const current = branch.operating_hours.find((item) => item.day_of_week === day); const [closedOverrides, setClosedOverrides] = useState<Record<number, boolean>>({}); const closed = closedOverrides[day] ?? current?.is_closed ?? false;
   async function save(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); try { await apiRequest(`/branches/${branch.id}/operating-hours`, token, { method: "POST", body: JSON.stringify({ day_of_week: day, opens_at: closed ? null : data.opens_at, closes_at: closed ? null : data.closes_at, is_closed: closed }) }); onChanged(); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not save hours."); } }
   return <Panel title="Operating hours" subtitle="Keep arrival and queue estimates aligned with opening times."><div className="flex gap-1 overflow-x-auto pb-2">{days.map((label, index) => <button key={label} onClick={() => setDay(index)} className={`min-w-10 rounded-xl px-2 py-2 text-xs font-bold ${day === index ? "bg-[#0B5CFF] text-white" : "bg-[#F4F8FF] text-[#526584]"}`}>{label.slice(0, 2)}</button>)}</div><form key={`${day}-${current?.id}`} onSubmit={save} className="mt-4 grid gap-3 sm:grid-cols-2"><label className="form-label">Opens<input name="opens_at" type="time" defaultValue={current?.opens_at?.slice(0,5) ?? "08:00"} disabled={closed} className="field mt-2 disabled:opacity-40"/></label><label className="form-label">Closes<input name="closes_at" type="time" defaultValue={current?.closes_at?.slice(0,5) ?? "17:00"} disabled={closed} className="field mt-2 disabled:opacity-40"/></label><label className="flex items-center gap-3 rounded-xl bg-[#F4F8FF] p-3 text-sm font-bold"><input type="checkbox" checked={closed} onChange={(event) => setClosedOverrides((value) => ({ ...value, [day]: event.target.checked }))} className="size-4 accent-[#0B5CFF]"/>Closed all day</label><button className="primary-button">Save {days[day]}</button></form></Panel>;
+}
+
+function StaffPanel({ branch, token, onChanged, onError }: { branch: Branch; token: string; onChanged: () => void; onError: (value: string) => void }) {
+  const [candidates, setCandidates] = useState<StaffCandidate[]>([]);
+  useEffect(() => {
+    let active = true;
+    void apiRequest<{ data: StaffCandidate[] }>(`/branches/${branch.id}/staff-candidates`, token)
+      .then((response) => { if (active) setCandidates(response.data); })
+      .catch((reason) => { if (active) onError(reason instanceof Error ? reason.message : "Could not load staff candidates."); });
+    return () => { active = false; };
+  }, [branch.id, onError, token]);
+
+  async function assign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget; const data = Object.fromEntries(new FormData(form));
+    try {
+      await apiRequest(`/branches/${branch.id}/staff-assignments`, token, { method: "POST", body: JSON.stringify({ user_id: Number(data.user_id), counter_id: data.counter_id ? Number(data.counter_id) : null, reason: data.reason }) });
+      form.reset(); onChanged();
+    } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not assign staff."); }
+  }
+
+  async function remove(assignment: Assignment) {
+    const reason = window.prompt(`Reason for removing ${assignment.user.name} (required)`);
+    if (!reason) return;
+    try { await apiRequest(`/branches/${branch.id}/staff-assignments/${assignment.id}`, token, { method: "DELETE", body: JSON.stringify({ reason }) }); onChanged(); }
+    catch (cause) { onError(cause instanceof Error ? cause.message : "Could not remove staff assignment."); }
+  }
+
+  return <Panel title="Staff assignments" subtitle="Assign managers or counter staff; every change requires a reason and is audited."><div className="space-y-3">{branch.staff_assignments.map((assignment) => <div key={assignment.id} className="flex items-center gap-3 rounded-2xl border border-[#E4ECF7] p-3"><span className="grid size-10 place-items-center rounded-xl bg-[#EFE8FF] text-sm font-black text-[#7754D8]">{assignment.user.name.slice(0, 1)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{assignment.user.name}</p><p className="truncate text-xs text-[#7D8EAA]">{assignment.counter?.label ?? "Branch manager"} · {assignment.user.email}</p></div><button type="button" onClick={() => void remove(assignment)} className="rounded-xl px-3 py-2 text-xs font-black text-[#B42345] hover:bg-red-50">Remove</button></div>)}{!branch.staff_assignments.length && <p className="py-4 text-center text-sm text-[#7D8EAA]">No staff assigned.</p>}</div><form onSubmit={assign} className="mt-4 space-y-3 rounded-2xl bg-[#F4F8FF] p-4"><select aria-label="Staff account" name="user_id" className="field" required defaultValue=""><option value="" disabled>Select staff account</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.role.replace("_", " ")}</option>)}</select><select aria-label="Assigned counter" name="counter_id" className="field" defaultValue=""><option value="">Branch-wide manager assignment</option>{branch.counters.map((counter) => <option key={counter.id} value={counter.id}>{counter.label}</option>)}</select><input aria-label="Assignment reason" name="reason" minLength={5} placeholder="Reason for assignment" className="field" required/><button className="secondary-button w-full">Assign staff</button></form></Panel>;
 }

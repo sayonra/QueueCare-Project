@@ -56,7 +56,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/tickets/{ticket}/transfer', [TicketServiceFlowController::class, 'transfer']);
         Route::post('/tickets/{ticket}/priority', [TicketServiceFlowController::class, 'priority']);
         Route::post('/device-tokens', [DeviceTokenController::class, 'store']);
-        Route::apiResource('branches', BranchController::class);
+        Route::apiResource('branches', BranchController::class)->only(['index', 'show', 'update']);
         Route::apiResource('branches.services', ServiceController::class);
         Route::apiResource('branches.counters', CounterController::class);
         Route::apiResource('branches.operating-hours', BranchOperatingHourController::class)
@@ -64,6 +64,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('branches.staff-assignments', StaffAssignmentController::class)
             ->except(['update'])
             ->parameters(['staff-assignments' => 'staffAssignment']);
+        Route::get('/branches/{branch}/staff-candidates', [StaffAssignmentController::class, 'candidates']);
         Route::get('/staff/counters', [StaffCounterController::class, 'index']);
         Route::get('/staff/counters/{counter}/queue', [CounterWorkflowController::class, 'show']);
         Route::post('/staff/counters/{counter}/call-next', [CounterWorkflowController::class, 'callNext']);

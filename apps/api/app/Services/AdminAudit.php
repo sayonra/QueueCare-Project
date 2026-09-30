@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminAudit
 {
@@ -15,7 +16,7 @@ class AdminAudit
         return ActivityLog::query()->create([
             'actor_id' => $actor->id,
             'action' => $action,
-            'subject_type' => strtolower(class_basename($subject)),
+            'subject_type' => Str::snake(class_basename($subject)),
             'subject_id' => $subject->getKey(),
             'description' => $description,
             'metadata' => $metadata,

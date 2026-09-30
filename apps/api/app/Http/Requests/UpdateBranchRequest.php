@@ -29,7 +29,6 @@ class UpdateBranchRequest extends FormRequest
             'timezone' => ['sometimes', 'required', 'timezone:all'],
             'address' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
-            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }

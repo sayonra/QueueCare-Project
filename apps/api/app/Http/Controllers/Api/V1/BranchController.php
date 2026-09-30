@@ -3,15 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreBranchRequest;
 use App\Http\Requests\UpdateBranchRequest;
 use App\Http\Resources\BranchResource;
 use App\Models\Branch;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 
 class BranchController extends Controller
@@ -36,16 +33,6 @@ class BranchController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreBranchRequest $request): JsonResponse
-    {
-        $branch = Branch::query()->create($request->validated());
-
-        return (new BranchResource($branch))->response()->setStatusCode(201);
-    }
-
-    /**
      * Display the specified resource.
      */
     public function show(Branch $branch): JsonResource
@@ -64,16 +51,5 @@ class BranchController extends Controller
         $branch->update($request->validated());
 
         return new BranchResource($branch->refresh()->load(['owner', 'services', 'counters.services', 'operatingHours', 'staffAssignments.user', 'staffAssignments.counter']));
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Branch $branch): Response
-    {
-        Gate::authorize('delete', $branch);
-        $branch->delete();
-
-        return response()->noContent();
     }
 }
