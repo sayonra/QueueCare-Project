@@ -304,8 +304,13 @@ function PlatformWorkspace({ token, currentUserId }: { token: string; currentUse
   }
 
   async function updateBranch(branch: AdminBranch, change: { owner_user_id?: number; is_active?: boolean }) {
-    const reason = window.prompt("Reason for this branch change (required)");
-    if (!reason) return;
+    const enteredReason = window.prompt("Reason for this branch change (minimum 5 characters)");
+    if (enteredReason === null) return;
+    const reason = enteredReason.trim();
+    if (reason.length < 5) {
+      setError("Enter a reason of at least 5 characters before updating the branch.");
+      return;
+    }
     setBusy(true); setError("");
     try { await apiRequest(`/admin/branches/${branch.id}`, token, { method: "PATCH", body: JSON.stringify({ ...change, reason }) }); setMessage("Branch ownership or lifecycle updated."); await refresh(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update the branch."); }
